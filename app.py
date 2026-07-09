@@ -322,6 +322,6 @@ with tab4:
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #666; font-size: 0.9rem;">
-    <p>StockInsight Pro | ACC102 Mini Assignment | Data source: Yahoo Finance</p>
+    <p>StockInsight Pro | Personal market analysis dashboard | Data source: Yahoo Finance</p>
 </div>
 """, unsafe_allow_html=True)

@@ -2,25 +2,18 @@
 
 **Interactive Financial Data Analysis Dashboard**
 
-A Streamlit-based interactive tool for stock market analysis and visualization, 
-developed for ACC102 Mini Assignment (Track 4).
+A Streamlit-based personal tool for stock market analysis and visualization.
 
 ## 🎯 Product Overview
 
-StockInsight Pro is a user-friendly web application that allows investors and 
-students to:
+StockInsight Pro is a personal web application for everyday investment research.
+It allows users to:
 
 - Fetch real-time stock data from Yahoo Finance
 - Visualize price movements with interactive candlestick charts
 - Calculate and display technical indicators (MA, RSI, MACD)
 - Generate AI-driven investment insights
 - Export data for further analysis
-
-## 🚀 Live Demo
-
-**Deployed App**: [Your Streamlit Cloud Link - 部署后填写]
-
-**Demo Video**: [Your 1-3 minute video link - 制作后填写]
 
 ## 📁 Project Structure
 
@@ -31,7 +24,8 @@ stock_insight/
 ├── analysis.py            # Technical analysis calculations
 ├── visualization.py       # Plotly visualization functions
 ├── requirements.txt       # Python dependencies
-└── README.md             # This file
+├── .streamlit/            # Cloud deployment configuration
+└── README.md              # This file
 ```
 
 
@@ -55,6 +49,19 @@ stock_insight/
 
 4. **Access the app**
    Open your browser and go to `http://localhost:8501`
+
+## Deploy to a Public URL
+
+The repository is ready for deployment on Streamlit Community Cloud:
+
+1. Push the project to GitHub.
+2. Sign in to [Streamlit Community Cloud](https://share.streamlit.io/).
+3. Create an app and select this repository.
+4. Set the entry point to `app.py`, then deploy.
+
+Streamlit will provide a public `*.streamlit.app` address that can be opened
+directly from any browser. A custom domain can be connected later through a
+hosting platform or reverse proxy if needed.
 
 ## 💡 Key Features
 
@@ -85,11 +92,11 @@ stock_insight/
 - **Type**: Interactive web-based charts
 - **Features**: Hover tooltips, zoom, pan, range selection
 
-## 🎯 Target Audience
+## 🎯 Intended Use
 
-- **Primary**: Finance students learning technical analysis
-- **Secondary**: Small investors needing quick stock insights
-- **Use Case**: Educational analysis, not professional trading
+- Personal stock research and market monitoring
+- Quick technical analysis for individual investors
+- Informational analysis only, not professional financial advice
 
 ## ⚠️ Limitations & Future Improvements
 
@@ -106,15 +113,3 @@ stock_insight/
 - [ ] Add news sentiment analysis
 - [ ] User authentication and saved preferences
 
-## 📚 References
-
-- Yahoo Finance. (2024). *Yahoo Finance API Documentation*.
-- Murphy, J. J. (1999). *Technical Analysis of the Financial Markets*. Penguin.
-- Streamlit Documentation: https://docs.streamlit.io/
-
-## 👤 Author
-
-- **Name**: [Your Name]
-- **Student ID**: [Your ID]
-- **Course**: ACC102 Mini Assignment
-- **Date**: April 2026
