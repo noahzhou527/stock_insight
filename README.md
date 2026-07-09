@@ -1,4 +1,4 @@
-# 📊 StockInsight Pro
+# 📊 Stock Insight
 
 **Interactive Financial Data Analysis Dashboard**
 
@@ -6,10 +6,17 @@ A Streamlit-based personal tool for stock market analysis and visualization.
 
 ## 🎯 Product Overview
 
-StockInsight Pro is a personal web application for everyday investment research.
+Stock Insight is a personal web application for everyday investment research.
 It allows users to:
 
 - Fetch real-time stock data from Yahoo Finance
+- Browse a curated China A-share AI hardware and advanced manufacturing universe
+- Fetch A-share daily OHLCV data from Tonghuashun
+- Hide weekends and exchange holidays from financial charts
+- View aligned candlestick and volume charts with market-specific colors
+- Track Tonghuashun intraday prices with 30-second refresh
+- Compare public PE (TTM), static PE, and dynamic PE
+- Show the latest annual report and current fiscal-year quarterly reports
 - Visualize price movements with interactive candlestick charts
 - Calculate and display technical indicators (MA, RSI, MACD)
 - Generate AI-driven investment insights
@@ -62,6 +69,21 @@ The repository is ready for deployment on Streamlit Community Cloud:
 Streamlit will provide a public `*.streamlit.app` address that can be opened
 directly from any browser. A custom domain can be connected later through a
 hosting platform or reverse proxy if needed.
+
+### Tonghuashun iFinD configuration
+
+A-share daily prices, public valuation metrics, intraday prices, and financial
+reports use Tonghuashun data. An iFinD access token is optional and remains
+available for Beijing Stock Exchange prices and future official API features.
+Add it to `.streamlit/secrets.toml` locally or to the Streamlit Cloud app
+secrets:
+
+```toml
+THS_ACCESS_TOKEN = "your-iFinD-access-token"
+```
+
+Use `.streamlit/secrets.toml.example` as the local template. The real secrets
+file is excluded from Git.
 
 ## 💡 Key Features
 
