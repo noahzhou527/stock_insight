@@ -603,6 +603,28 @@ def _parse_pe_value(value: str | None) -> float | None:
     return number if number > 0 and np.isfinite(number) else None
 
 
+def _parse_market_cap(value: str | None) -> float | None:
+    """Convert a Chinese market-cap label such as 13323亿 to yuan."""
+    if not value:
+        return None
+    normalized = re.sub(r"<[^>]+>", " ", value)
+    normalized = normalized.replace(",", "").replace(" ", "")
+    match = re.search(r"(\d+(?:\.\d+)?)\s*(万亿|亿|万|元)?", normalized)
+    if not match:
+        return None
+    number = float(match.group(1))
+    multiplier = {
+        "万亿": 1e12,
+        "亿": 1e8,
+        "万": 1e4,
+        "元": 1.0,
+    }.get(match.group(2))
+    if multiplier is None:
+        return None
+    result = number * multiplier
+    return result if result > 0 and np.isfinite(result) else None
+
+
 def fetch_a_share_valuation(ticker: str) -> dict:
     """Fetch public TTM, static, and dynamic PE values from THS F10 pages."""
     code = ticker.split(".")[0]
@@ -644,13 +666,42 @@ def fetch_a_share_valuation(ticker: str) -> dict:
         desktop,
         flags=re.S | re.I,
     )
+    market_cap_match = re.search(
+        r'id=["\']stockzsz["\'][^>]*>(.*?)</span>',
+        desktop,
+        flags=re.S | re.I,
+    )
     mobile_text = re.sub(r"<[^>]+>", " ", mobile)
     mobile_text = re.sub(r"\s+", " ", mobile_text)
     ttm_match = re.search(
-        r"市盈率\s*\(TTM\)\s*[:：]?\s*([-+]?\d+(?:\.\d+)?|亏损|未公布|--)",
+        r"市盈率\s*\(TTM\)\s*[:：]?\s*"
+        r"([-+]?\d+(?:\.\d+)?|亏损|未公布|不适用|--)",
         mobile_text,
         flags=re.I,
     )
+    if not ttm_match:
+        # The mobile F10 site serves two equivalent routes. Occasionally one
+        # returns an incomplete shell, so retry the alternate route before
+        # treating TTM PE as unavailable.
+        try:
+            fallback_response = session.get(
+                f"https://basic.10jqka.com.cn/mobile/{code}/companyn.html",
+                headers=headers,
+                timeout=20,
+            )
+            fallback_response.raise_for_status()
+            fallback_text = re.sub(
+                r"<[^>]+>", " ", _decode_ths_page(fallback_response)
+            )
+            fallback_text = re.sub(r"\s+", " ", fallback_text)
+            ttm_match = re.search(
+                r"市盈率\s*\(TTM\)\s*[:：]?\s*"
+                r"([-+]?\d+(?:\.\d+)?|亏损|未公布|不适用|--)",
+                fallback_text,
+                flags=re.I,
+            )
+        except Exception:
+            pass
 
     return {
         "pe_ttm": _parse_pe_value(ttm_match.group(1) if ttm_match else None),
@@ -660,9 +711,45 @@ def fetch_a_share_valuation(ticker: str) -> dict:
         "pe_dynamic": _parse_pe_value(
             dynamic_match.group(1) if dynamic_match else None
         ),
+        "market_cap": _parse_market_cap(
+            market_cap_match.group(1) if market_cap_match else None
+        ),
         "as_of": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"),
         "source": "同花顺公开 F10",
     }
+
+
+def fetch_us_market_cap(ticker: str) -> float | None:
+    """Fetch the latest US equity market capitalization from Yahoo Finance."""
+    try:
+        response = _create_yahoo_session().get(
+            f"https://finance.yahoo.com/quote/{ticker}/",
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=20,
+        )
+        response.raise_for_status()
+        match = re.search(
+            r'data-field=["\']marketCap["\'][^>]*>(.*?)</',
+            response.text,
+            flags=re.S | re.I,
+        )
+        if not match:
+            return None
+        label = re.sub(r"<[^>]+>", "", match.group(1))
+        label = label.replace(",", "").strip().upper()
+        value_match = re.search(r"(\d+(?:\.\d+)?)\s*([KMBT])?", label)
+        if not value_match:
+            return None
+        multiplier = {
+            "K": 1e3,
+            "M": 1e6,
+            "B": 1e9,
+            "T": 1e12,
+        }.get(value_match.group(2), 1.0)
+        number = float(value_match.group(1)) * multiplier
+    except Exception:
+        return None
+    return number if number > 0 and np.isfinite(number) else None
 
 
 def fetch_a_share_intraday(ticker: str) -> pd.DataFrame:

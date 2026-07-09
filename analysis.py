@@ -25,6 +25,22 @@ def calculate_ema(df: pd.DataFrame, period: int, column: str = 'Close') -> pd.Se
     return df[column].ewm(span=period, adjust=False).mean()
 
 
+def calculate_bbi(
+    df: pd.DataFrame,
+    periods: tuple = (3, 6, 12, 24),
+    column: str = 'Close',
+) -> pd.Series:
+    """
+    计算多空指标（BBI）。
+
+    BBI = (MA3 + MA6 + MA12 + MA24) / 4
+    """
+    if not periods:
+        raise ValueError("BBI periods cannot be empty")
+    moving_averages = [calculate_ma(df, period, column) for period in periods]
+    return pd.concat(moving_averages, axis=1).mean(axis=1, skipna=False)
+
+
 def calculate_rsi(df: pd.DataFrame, period: int = 14, column: str = 'Close') -> pd.Series:
     """
     计算相对强弱指标 (RSI)

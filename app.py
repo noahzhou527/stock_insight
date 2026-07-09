@@ -13,9 +13,17 @@ from data_fetcher import (
     fetch_a_share_intraday,
     fetch_a_share_valuation,
     fetch_stock_data,
+    fetch_us_market_cap,
 )
 import a_share_universe
-from analysis import calculate_ma, calculate_rsi, calculate_macd
+from analysis import (
+    calculate_bbi,
+    calculate_bollinger_bands,
+    calculate_ma,
+    calculate_macd,
+    calculate_rsi,
+)
+from indicator_help import render_indicator_help
 from visualization import plot_candlestick, plot_intraday, plot_rsi, plot_macd
 
 # Streamlit reruns the app in the same process, so refresh the separately
@@ -45,31 +53,228 @@ st.set_page_config(
 # ============ 自定义样式 ============
 st.markdown("""
 <style>
-    .main-header {
-        font-size: 2.5rem;
-        font-weight: bold;
-        color: #1f77b4;
-        text-align: center;
-        margin-bottom: 0.5rem;
+    :root {
+        --brand: #2563eb;
+        --brand-deep: #1d4ed8;
+        --ink: #172033;
+        --muted: #667085;
+        --line: #e6eaf0;
+        --surface: #ffffff;
+        --canvas: #f5f7fb;
     }
-    .sub-header {
-        font-size: 1.1rem;
-        color: #666;
+    .stApp {
+        background:
+            radial-gradient(circle at 50% -10%, rgba(37, 99, 235, 0.09), transparent 30rem),
+            var(--canvas);
+    }
+    [data-testid="stHeader"] {
+        background: transparent;
+    }
+    [data-testid="stMainBlockContainer"] {
+        max-width: 1380px;
+        padding-top: 2.2rem;
+        padding-bottom: 4rem;
+    }
+    [data-testid="stSidebar"] {
+        background: rgba(255, 255, 255, 0.94);
+        border-right: 1px solid var(--line);
+    }
+    [data-testid="stSidebar"] [data-testid="stSidebarContent"] {
+        padding-top: 1.5rem;
+    }
+    [data-testid="stSidebar"] h2,
+    [data-testid="stSidebar"] h3 {
+        color: var(--ink);
+        letter-spacing: -0.02em;
+    }
+    .main-header {
+        font-size: clamp(2.15rem, 4vw, 3.15rem);
+        font-weight: 800;
+        line-height: 1.05;
+        letter-spacing: -0.045em;
+        background: linear-gradient(120deg, #172033 20%, #2563eb 78%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
         text-align: center;
-        margin-bottom: 2rem;
+        margin: 0.35rem 0 1.4rem;
+    }
+    .nav-label {
+        color: var(--muted);
+        font-size: 0.76rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin: 0 0 0.4rem 0.15rem;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        background: rgba(255, 255, 255, 0.9);
+        border-color: rgba(214, 220, 230, 0.92) !important;
+        border-radius: 1rem !important;
+        box-shadow: 0 12px 35px rgba(23, 32, 51, 0.07);
+    }
+    div[data-testid="stSegmentedControl"] [data-baseweb="button-group"] {
+        width: 100%;
+        padding: 0.24rem;
+        border-radius: 0.78rem;
+        background: #f2f4f8;
+    }
+    div[data-testid="stSegmentedControl"] button {
+        flex: 1;
+        min-height: 2.55rem;
+        border: 0 !important;
+        border-radius: 0.62rem !important;
+        font-weight: 650;
+        color: #596579;
+    }
+    div[data-testid="stSegmentedControl"] button[aria-pressed="true"] {
+        background: white !important;
+        color: var(--brand-deep) !important;
+        box-shadow: 0 3px 10px rgba(23, 32, 51, 0.1);
     }
     .metric-card {
-        background-color: #f0f2f6;
+        background-color: var(--surface);
         border-radius: 10px;
         padding: 1rem;
         text-align: center;
     }
+    [data-testid="stMetric"] {
+        min-height: 7rem;
+        padding: 1.05rem 1.15rem;
+        border: 1px solid var(--line);
+        border-radius: 0.9rem;
+        background: var(--surface);
+        box-shadow: 0 5px 18px rgba(23, 32, 51, 0.045);
+    }
+    [data-testid="stMetricLabel"] {
+        color: var(--muted);
+        font-weight: 600;
+    }
+    [data-testid="stMetricValue"] {
+        color: var(--ink);
+        letter-spacing: -0.035em;
+    }
+    [data-testid="stMetric"]:has([data-testid="stMetricDelta"]) > div {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        column-gap: 0.75rem;
+        row-gap: 0.2rem;
+    }
+    [data-testid="stMetric"]:has([data-testid="stMetricDelta"])
+        [data-testid="stMetricLabel"] {
+        flex: 0 0 100%;
+    }
+    [data-testid="stMetric"]:has([data-testid="stMetricDelta"])
+        [data-testid="stMetricValue"] {
+        flex: 0 0 auto;
+    }
+    [data-testid="stMetric"]:has([data-testid="stMetricDelta"])
+        [data-testid="stMetricDelta"] {
+        margin: 0;
+        white-space: nowrap;
+    }
+    .cn-price-direction {
+        display: none;
+    }
+    [data-testid="stColumn"]:has(.cn-price-up) [data-testid="stMetricValue"],
+    [data-testid="stColumn"]:has(.cn-price-up) [data-testid="stMetricValue"] p {
+        color: #e53935 !important;
+    }
+    [data-testid="stColumn"]:has(.cn-price-down) [data-testid="stMetricValue"],
+    [data-testid="stColumn"]:has(.cn-price-down) [data-testid="stMetricValue"] p {
+        color: #1e9d55 !important;
+    }
     .stTabs [data-baseweb="tab-list"] {
-        gap: 24px;
+        gap: 0.35rem;
+        padding: 0.3rem;
+        border-radius: 0.85rem;
+        background: #e9edf4;
     }
     .stTabs [data-baseweb="tab"] {
-        padding: 10px 20px;
+        padding: 0.65rem 1rem;
+        border-radius: 0.65rem;
         font-weight: 600;
+        color: #5b6678;
+    }
+    .stTabs [aria-selected="true"] {
+        background: white;
+        color: var(--brand-deep) !important;
+        box-shadow: 0 2px 8px rgba(23, 32, 51, 0.08);
+    }
+    .stTabs [data-baseweb="tab-highlight"] {
+        display: none;
+    }
+    .stButton > button {
+        border-radius: 0.7rem;
+        border-color: #d7dce5;
+        font-weight: 650;
+    }
+    [data-testid="stPlotlyChart"],
+    [data-testid="stDataFrame"] {
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 1rem;
+        background: white;
+        box-shadow: 0 7px 24px rgba(23, 32, 51, 0.045);
+    }
+    hr {
+        border-color: var(--line) !important;
+    }
+    .indicator-summary-grid,
+    .rsi-zone-grid {
+        display: grid;
+        gap: 0.8rem;
+        margin: 0.85rem 0;
+    }
+    .indicator-summary-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .rsi-zone-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .indicator-summary-card,
+    .rsi-zone-card {
+        padding: 0.9rem 1rem;
+        border: 1px solid var(--line);
+        border-radius: 0.8rem;
+        background: #fafbfc;
+    }
+    .indicator-summary-card strong,
+    .rsi-zone-card strong {
+        display: block;
+        color: var(--ink);
+        font-size: 0.88rem;
+        margin-bottom: 0.3rem;
+    }
+    .indicator-summary-card span,
+    .rsi-zone-card span {
+        color: var(--muted);
+        font-size: 0.82rem;
+        line-height: 1.55;
+    }
+    .rsi-zone-card {
+        border-top-width: 3px;
+    }
+    .rsi-zone-card.oversold {
+        border-top-color: #22a06b;
+        background: #f2fbf7;
+    }
+    .rsi-zone-card.neutral {
+        border-top-color: #64748b;
+    }
+    .rsi-zone-card.overbought {
+        border-top-color: #e05260;
+        background: #fff7f7;
+    }
+    .indicator-note {
+        margin-top: 0.75rem;
+        padding: 0.75rem 0.9rem;
+        border-left: 3px solid #94a3b8;
+        border-radius: 0 0.55rem 0.55rem 0;
+        background: #f6f8fb;
+        color: #5b6678;
+        font-size: 0.86rem;
+        line-height: 1.6;
     }
     .pe-formula-grid {
         display: grid;
@@ -124,7 +329,14 @@ st.markdown("""
         padding: 0.2rem 0.5rem 0;
     }
     @media (max-width: 900px) {
+        [data-testid="stMainBlockContainer"] {
+            padding-top: 1rem;
+        }
         .pe-formula-grid {
+            grid-template-columns: 1fr;
+        }
+        .indicator-summary-grid,
+        .rsi-zone-grid {
             grid-template-columns: 1fr;
         }
         .pe-formula-card {
@@ -136,17 +348,48 @@ st.markdown("""
 
 # ============ 标题区域 ============
 st.markdown('<div class="main-header">Stock Insight</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-header">Interactive Financial Data Analysis Dashboard</div>', unsafe_allow_html=True)
+
+# ============ 顶部导航 ============
+nav_spacer_left, nav_area, nav_spacer_right = st.columns([1, 5, 1])
+with nav_area:
+    with st.container(border=True):
+        current_page = st.session_state.get("page_navigation", "行情分析")
+        if current_page == "指标说明":
+            page_left, page_nav, page_right = st.columns([1, 2, 1])
+        else:
+            page_nav, market_nav = st.columns(2, gap="large")
+
+        with page_nav:
+            st.markdown('<div class="nav-label">页面导航</div>', unsafe_allow_html=True)
+            page = st.segmented_control(
+                "页面导航",
+                ["行情分析", "指标说明"],
+                default="行情分析",
+                key="page_navigation",
+                label_visibility="collapsed",
+                width="stretch",
+            )
+        if page == "行情分析":
+            with market_nav:
+                st.markdown('<div class="nav-label">股票市场</div>', unsafe_allow_html=True)
+                market_label = st.segmented_control(
+                    "股票市场",
+                    ["美股", "中国 A 股"],
+                    default="美股",
+                    label_visibility="collapsed",
+                    width="stretch",
+                )
+
+# 页面导航独立于行情筛选；查看说明时不发起行情网络请求。
+if page == "指标说明":
+    st.markdown("---")
+    render_indicator_help()
+    st.stop()
 
 # ============ 侧边栏控制面板 ============
-st.sidebar.header("分析参数设置")
+st.sidebar.header("行情参数")
 
 # 股票市场与标的选择
-market_label = st.sidebar.radio(
-    "股票市场",
-    ["美股", "中国 A 股"],
-    horizontal=True,
-)
 market = "CN" if market_label == "中国 A 股" else "US"
 ths_access_token = get_ths_access_token()
 
@@ -167,6 +410,10 @@ else:
         "Google (GOOGL)": "GOOGL",
         "Meta (META)": "META",
         "NVIDIA (NVDA)": "NVDA",
+        "SpaceX (SPCX)": "SPCX",
+        "Broadcom (AVGO)": "AVGO",
+        "SanDisk (SNDK)": "SNDK",
+        "Micron (MU)": "MU",
         "Berkshire Hathaway (BRK-B)": "BRK-B",
         "JPMorgan (JPM)": "JPM",
         "Visa (V)": "V",
@@ -189,11 +436,27 @@ with col2:
 st.sidebar.markdown("---")
 st.sidebar.subheader("技术指标设置")
 
-ma_periods = st.sidebar.multiselect(
+ma_period_inputs = st.sidebar.multiselect(
     "移动平均线周期",
-    options=[5, 10, 20, 50, 100, 200],
-    default=[20, 50]
+    options=[5, 10, 20, 30, 50, 60, 120],
+    default=[5, 10, 20],
+    accept_new_options=True,
+    help="可选择预设周期，也可直接输入 1–500 之间的交易日数。",
 )
+ma_periods = []
+for value in ma_period_inputs:
+    try:
+        period = int(value)
+    except (TypeError, ValueError):
+        continue
+    if 1 <= period <= 500 and period not in ma_periods:
+        ma_periods.append(period)
+
+indicator_columns = st.sidebar.columns(2)
+with indicator_columns[0]:
+    show_bbi = st.toggle("BBI 线", value=False, help="多空指标：MA3、MA6、MA12、MA24 的均值")
+with indicator_columns[1]:
+    show_boll = st.toggle("BOLL 线", value=False, help="20 日中轨及上下 2 倍标准差轨道")
 
 rsi_period = st.sidebar.slider("RSI周期", 7, 21, 14)
 
@@ -211,9 +474,17 @@ def load_data(ticker, start, end, market, ths_access_token):
     )
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
-def load_valuation(ticker):
+VALUATION_CACHE_VERSION = 4
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_valuation(ticker, cache_version=VALUATION_CACHE_VERSION):
     return fetch_a_share_valuation(ticker)
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def load_us_market_cap(ticker):
+    return fetch_us_market_cap(ticker)
 
 
 @st.cache_data(ttl=21600, show_spinner=False)
@@ -321,9 +592,26 @@ except Exception as e:
 # ============ 关键指标展示 ============
 st.markdown("---")
 
-# 计算关键指标
+# 计算关键指标。A 股优先使用最新分时价，接口暂不可用时回退日线收盘价。
 latest_price = df['Close'].iloc[-1]
 prev_price = df['Close'].iloc[-2]
+current_price_label = "当前价格"
+if market == "CN":
+    intraday_session_key = f"intraday:{ticker}"
+    intraday_snapshot = st.session_state.get(intraday_session_key)
+    if intraday_snapshot is None:
+        try:
+            intraday_snapshot = load_intraday(ticker)
+            st.session_state[intraday_session_key] = intraday_snapshot
+        except DataFetchError:
+            intraday_snapshot = None
+    if intraday_snapshot is not None and not intraday_snapshot.empty:
+        latest_price = float(intraday_snapshot["Price"].iloc[-1])
+        prev_price = float(intraday_snapshot.attrs.get("pre_close", prev_price))
+        current_price_label = "当前价格（分时）"
+    else:
+        current_price_label = "当前价格（最近收盘）"
+
 price_change = latest_price - prev_price
 price_change_pct = (price_change / prev_price) * 100
 
@@ -332,38 +620,75 @@ low_52w = df['Low'].min()
 volume_avg = df['Volume'].mean()
 volatility = df['Close'].pct_change().std() * np.sqrt(252) * 100
 currency_symbol = "¥" if market == "CN" else "$"
+price_change_sign = "+" if price_change >= 0 else "-"
+price_delta_label = (
+    f"{price_change_sign}{currency_symbol}{abs(price_change):.2f} "
+    f"({price_change_pct:+.2f}%)"
+)
 
 valuation = {
     "pe_ttm": None,
     "pe_static": None,
     "pe_dynamic": None,
+    "market_cap": None,
     "source": None,
 }
 valuation_error = None
 if market == "CN":
     try:
-        valuation = load_valuation(ticker)
+        valuation = load_valuation(ticker, VALUATION_CACHE_VERSION)
     except Exception as error:
         valuation_error = str(error)
+    market_cap = valuation.get("market_cap")
+else:
+    market_cap = load_us_market_cap(ticker)
+
+
+def format_market_cap(value, selected_market):
+    if value is None or not np.isfinite(value):
+        return "暂不可用"
+    if selected_market == "CN":
+        if value >= 1e12:
+            return f"¥{value / 1e12:.2f}万亿"
+        if value >= 1e8:
+            return f"¥{value / 1e8:.2f}亿"
+        if value >= 1e4:
+            return f"¥{value / 1e4:.2f}万"
+        return f"¥{value:,.0f}"
+    if value >= 1e12:
+        return f"${value / 1e12:.2f}T"
+    if value >= 1e9:
+        return f"${value / 1e9:.2f}B"
+    if value >= 1e6:
+        return f"${value / 1e6:.2f}M"
+    return f"${value:,.0f}"
 
 if market == "CN":
     price_columns = st.columns(3)
     with price_columns[0]:
+        direction_class = "cn-price-up" if price_change_pct >= 0 else "cn-price-down"
         st.metric(
-            "当前价格",
+            current_price_label,
             f"{currency_symbol}{latest_price:.2f}",
-            f"{price_change_pct:.2f}%",
+            price_delta_label,
+            delta_color="inverse",
+        )
+        st.markdown(
+            f'<span class="cn-price-direction {direction_class}"></span>',
+            unsafe_allow_html=True,
         )
     with price_columns[1]:
         st.metric("52周最高", f"{currency_symbol}{high_52w:.2f}")
     with price_columns[2]:
         st.metric("52周最低", f"{currency_symbol}{low_52w:.2f}")
 
-    secondary_columns = st.columns(2)
+    secondary_columns = st.columns(3)
     with secondary_columns[0]:
         st.metric("平均成交量", f"{volume_avg / 1e6:.1f}M")
     with secondary_columns[1]:
         st.metric("年化波动率", f"{volatility:.1f}%")
+    with secondary_columns[2]:
+        st.metric("总市值", format_market_cap(market_cap, market))
 
     st.markdown("#### 估值概览")
     valuation_columns = st.columns(3)
@@ -383,24 +708,29 @@ if market == "CN":
             f"估值数据来源：{valuation['source']} · {valuation.get('as_of', '')}"
         )
 else:
-    metric_columns = st.columns(5)
-    with metric_columns[0]:
+    primary_metric_columns = st.columns(3)
+    with primary_metric_columns[0]:
         st.metric(
-            "当前价格",
+            current_price_label,
             f"{currency_symbol}{latest_price:.2f}",
-            f"{price_change_pct:.2f}%",
+            price_delta_label,
+            delta_color="normal",
         )
-    with metric_columns[1]:
+    with primary_metric_columns[1]:
         st.metric("52周最高", f"{currency_symbol}{high_52w:.2f}")
-    with metric_columns[2]:
+    with primary_metric_columns[2]:
         st.metric("52周最低", f"{currency_symbol}{low_52w:.2f}")
-    with metric_columns[3]:
+
+    secondary_metric_columns = st.columns(3)
+    with secondary_metric_columns[0]:
         st.metric("平均成交量", f"{volume_avg / 1e6:.1f}M")
-    with metric_columns[4]:
+    with secondary_metric_columns[1]:
         st.metric("年化波动率", f"{volatility:.1f}%")
+    with secondary_metric_columns[2]:
+        st.metric("总市值", format_market_cap(market_cap, market))
 
 # ============ 主内容区域 ============
-tab1, tab_intraday, tab2, tab3, tab4, tab5, tab_help = st.tabs(
+tab1, tab_intraday, tab2, tab3, tab4, tab5 = st.tabs(
     [
         "价格分析",
         "当日分时",
@@ -408,18 +738,28 @@ tab1, tab_intraday, tab2, tab3, tab4, tab5, tab_help = st.tabs(
         "数据详情",
         "投资洞察",
         "财务报表",
-        "指标说明",
     ]
 )
 
 # ============ Tab 1: 价格分析 ============
 with tab1:
     st.subheader("K线图与成交量")
+    volume_metric_label = st.segmented_control(
+        "副图指标",
+        ["成交量", "成交额"],
+        default="成交量",
+        key="price_volume_metric",
+    )
+    volume_metric = "amount" if volume_metric_label == "成交额" else "volume"
 
     # 计算移动平均线
     df_with_ma = df.copy()
     for period in ma_periods:
         df_with_ma[f'MA_{period}'] = calculate_ma(df_with_ma, period)
+    if show_bbi:
+        df_with_ma["BBI"] = calculate_bbi(df_with_ma)
+    if show_boll:
+        df_with_ma = calculate_bollinger_bands(df_with_ma)
 
     # 绘制K线图
     fig = plot_candlestick(
@@ -427,6 +767,9 @@ with tab1:
         ma_periods,
         currency="CNY" if market == "CN" else "USD",
         market=market,
+        show_bbi=show_bbi,
+        show_boll=show_boll,
+        volume_metric=volume_metric,
     )
     st.plotly_chart(fig, width="stretch")
 
@@ -594,109 +937,6 @@ with tab5:
                 )
         except DataFetchError as error:
             st.warning(str(error))
-
-# ============ 指标说明 ============
-with tab_help:
-    st.subheader("指标说明与计算方法")
-    st.caption("以下内容用于理解数据口径，不构成投资建议。")
-
-    with st.expander("价格、52 周高低点与成交量", expanded=True):
-        st.markdown(
-            """
-            - **当前价格**：所选日期范围内最后一个交易日的收盘价。
-            - **52 周最高/最低**：当前页面所加载区间内的最高价和最低价；
-              默认选择一年时可近似理解为 52 周区间。
-            - **成交量**：交易期内成交的股票数量。放量上涨、放量下跌需要结合
-              趋势位置判断，成交量本身不直接代表买入或卖出信号。
-            """
-        )
-
-    with st.expander("移动平均线（MA）"):
-        st.latex(r"MA_n = \frac{P_1 + P_2 + \cdots + P_n}{n}")
-        st.markdown(
-            """
-            MA 是最近 n 个交易日收盘价的算术平均值，用于平滑短期波动和观察趋势。
-            短期均线上穿长期均线通常称为“金叉”，反之称为“死叉”，但震荡行情中
-            容易产生反复的滞后信号。
-            """
-        )
-
-    with st.expander("RSI（相对强弱指标）"):
-        st.latex(r"RSI = 100 - \frac{100}{1 + RS}")
-        st.markdown(
-            """
-            RS 为指定周期内平均上涨幅度与平均下跌幅度之比。RSI 高于 70 常被视为
-            超买，低于 30 常被视为超卖；强趋势中 RSI 可能长时间停留在极端区间。
-            """
-        )
-
-    with st.expander("MACD（指数平滑异同平均线）"):
-        st.latex(r"MACD = EMA_{12} - EMA_{26}")
-        st.latex(r"Signal = EMA_9(MACD)")
-        st.markdown(
-            """
-            MACD 衡量短期与长期指数移动平均线的差异。MACD 上穿 Signal 常被称为
-            金叉，下穿称为死叉。它适合观察趋势和动量，但同样具有滞后性。
-            """
-        )
-
-    with st.expander("年化波动率"):
-        st.latex(r"\sigma_{annual} = Std(日收益率) \times \sqrt{252}")
-        st.markdown(
-            """
-            年化波动率描述价格变化幅度，不区分上涨和下跌。数值越高通常意味着价格
-            不确定性越大；它不是收益率，也不能单独用于判断股票是否值得投资。
-            """
-        )
-
-    with st.expander("市盈率 TTM、静态市盈率与动态市盈率", expanded=True):
-        st.markdown(
-            """
-            <div class="pe-formula-grid">
-                <div class="pe-formula-card">
-                    <div class="pe-formula-title">TTM 市盈率</div>
-                    <div class="pe-formula">
-                        <span>PE<sub>TTM</sub></span><span>=</span>
-                        <span class="pe-fraction">
-                            <span>当前总市值</span>
-                            <span>最近四个季度净利润</span>
-                        </span>
-                    </div>
-                </div>
-                <div class="pe-formula-card">
-                    <div class="pe-formula-title">静态市盈率</div>
-                    <div class="pe-formula">
-                        <span>PE<sub>静态</sub></span><span>=</span>
-                        <span class="pe-fraction">
-                            <span>当前总市值</span>
-                            <span>最近完整财年净利润</span>
-                        </span>
-                    </div>
-                </div>
-                <div class="pe-formula-card">
-                    <div class="pe-formula-title">动态市盈率</div>
-                    <div class="pe-formula">
-                        <span>PE<sub>动态</sub></span><span>=</span>
-                        <span class="pe-fraction">
-                            <span>当前总市值</span>
-                            <span>当前报告期年化净利润</span>
-                        </span>
-                    </div>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            """
-            - **TTM 市盈率**使用滚动十二个月利润，通常最接近公司当前盈利状态。
-            - **静态市盈率**使用最近完整年报利润，口径稳定但可能滞后。
-            - **动态市盈率**把当前累计利润年化：一季报 ×4、中报 ×2、
-              三季报 ×4/3；季节性明显的企业可能失真。
-            - 市盈率应优先与同一行业、相近商业模式和相近成长阶段的公司比较。
-              净利润为零或亏损时，市盈率没有经济意义，页面显示“亏损 / 不适用”。
-            """
-        )
 
 # ============ 页脚 ============
 st.markdown("---")
