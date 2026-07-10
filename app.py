@@ -91,7 +91,8 @@ st.markdown("""
     }
     [data-testid="stMainBlockContainer"] {
         max-width: 1380px;
-        padding-top: 2rem;
+        /* Leave clear space below Streamlit's fixed Deploy toolbar. */
+        padding-top: 4.25rem;
         padding-bottom: 4rem;
     }
     [data-testid="stSidebar"] {
@@ -119,8 +120,46 @@ st.markdown("""
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         text-align: center;
-        margin: 0.25rem 0 1.35rem;
+        margin: 0 0 1.35rem;
         filter: drop-shadow(0 0 24px rgba(34, 211, 238, 0.12));
+    }
+    /* MathJax fractions extend above their baseline; prevent clipping in expanders. */
+    [data-testid="stExpanderDetails"] [data-testid="stLatex"] {
+        margin: 0.4rem 0 0.9rem;
+        padding: 0.35rem 0;
+        overflow: visible;
+    }
+    [data-testid="stExpanderDetails"] [data-testid="stLatex"] mjx-container {
+        overflow: visible !important;
+    }
+    .rsi-formula {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.42rem;
+        min-height: 5.4rem;
+        padding: 0.7rem 0 0.45rem;
+        color: #dce7f5;
+        font-family: "Times New Roman", "Microsoft YaHei", serif;
+        font-size: clamp(1.35rem, 2.1vw, 1.75rem);
+        line-height: 1.2;
+    }
+    .rsi-formula em {
+        font-style: italic;
+    }
+    .rsi-fraction {
+        display: inline-grid;
+        grid-template-rows: auto auto;
+        min-width: 3.1rem;
+        text-align: center;
+        line-height: 1.15;
+    }
+    .rsi-fraction span:first-child {
+        padding: 0.15rem 0.35rem 0.22rem;
+        border-bottom: 1px solid currentColor;
+    }
+    .rsi-fraction span:last-child {
+        padding: 0.22rem 0.35rem 0.12rem;
     }
     .nav-label {
         color: var(--muted);
@@ -464,7 +503,7 @@ st.markdown("""
     }
     @media (max-width: 900px) {
         [data-testid="stMainBlockContainer"] {
-            padding-top: 1rem;
+            padding-top: 3.25rem;
         }
         .nav-context {
             margin-top: 0.65rem;
@@ -694,7 +733,7 @@ with nav_area:
                 market_label = st.segmented_control(
                     "股票市场",
                     ["美股", "A股"],
-                    default="美股",
+                    default="A股",
                     key="market_navigation",
                     label_visibility="collapsed",
                     width="stretch",

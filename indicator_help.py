@@ -77,7 +77,15 @@ def render_indicator_help():
         )
 
     with st.expander("RSI（相对强弱指标）"):
-        st.latex(r"RSI = 100 - \frac{100}{1 + RS}")
+        st.markdown(
+            """
+            <div class="rsi-formula" aria-label="RSI equals 100 minus 100 divided by 1 plus RS">
+                <em>RSI</em><span>=</span><span>100</span><span>−</span>
+                <span class="rsi-fraction"><span>100</span><span>1 + <em>RS</em></span></span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         st.markdown(
             """
             <div class="rsi-zone-grid">
