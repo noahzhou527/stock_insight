@@ -8,6 +8,49 @@ from plotly.subplots import make_subplots
 import pandas as pd
 
 
+CHART_BG = "#0d1422"
+PLOT_BG = "#0a111e"
+GRID_COLOR = "#1c293b"
+TEXT_COLOR = "#cbd7e6"
+MUTED_COLOR = "#7f90a8"
+
+
+def _apply_dark_theme(fig: go.Figure) -> go.Figure:
+    """Apply the dashboard's financial-terminal theme to a Plotly figure."""
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor=CHART_BG,
+        plot_bgcolor=PLOT_BG,
+        font=dict(
+            family='Inter, "Microsoft YaHei", Arial, sans-serif',
+            color=TEXT_COLOR,
+            size=12,
+        ),
+        title_font=dict(color="#e8f1fc", size=18),
+        legend=dict(bgcolor="rgba(13, 20, 34, 0.72)", borderwidth=0),
+        hoverlabel=dict(
+            bgcolor="#111b2c",
+            bordercolor="#26384f",
+            font=dict(color="#e6edf7"),
+        ),
+    )
+    fig.update_xaxes(
+        gridcolor=GRID_COLOR,
+        linecolor="#26384f",
+        tickfont=dict(color=MUTED_COLOR),
+        title_font=dict(color="#9fb0c6"),
+        zerolinecolor="#26384f",
+    )
+    fig.update_yaxes(
+        gridcolor=GRID_COLOR,
+        linecolor="#26384f",
+        tickfont=dict(color=MUTED_COLOR),
+        title_font=dict(color="#9fb0c6"),
+        zerolinecolor="#26384f",
+    )
+    return fig
+
+
 def _trading_day_rangebreaks(index: pd.Index) -> list:
     """Hide weekends and missing weekday sessions from time-series charts."""
     dates = pd.DatetimeIndex(index).normalize()
@@ -73,7 +116,7 @@ def plot_candlestick(
         whiskerwidth=0.35,
     ), row=1, col=1)
 
-    colors = ['#f39c12', '#2864dc', '#8e44ad', '#34495e', '#d35400']
+    colors = ['#fbbf24', '#22d3ee', '#a78bfa', '#60a5fa', '#f472b6']
     if ma_periods:
         for i, period in enumerate(ma_periods):
             col_name = f'MA_{period}'
@@ -134,7 +177,7 @@ def plot_candlestick(
 
     fig.update_layout(
         title=dict(text=f"价格走势与{volume_label}", x=0.01, xanchor="left"),
-        template='plotly_white',
+        template='plotly_dark',
         height=720,
         xaxis_rangeslider_visible=False,
         hovermode='x unified',
@@ -147,37 +190,37 @@ def plot_candlestick(
             xanchor="right",
             x=1,
         ),
-        font=dict(family="Arial, Microsoft YaHei, sans-serif", color="#25324a"),
-        plot_bgcolor="#fbfcfe",
-        paper_bgcolor="white",
+        font=dict(family="Arial, Microsoft YaHei, sans-serif", color=TEXT_COLOR),
+        plot_bgcolor=PLOT_BG,
+        paper_bgcolor=CHART_BG,
     )
     rangebreaks = _trading_day_rangebreaks(df.index)
     fig.update_xaxes(
         rangebreaks=rangebreaks,
         showgrid=True,
-        gridcolor="#e9edf4",
+        gridcolor=GRID_COLOR,
         showspikes=True,
         spikemode="across",
         spikesnap="cursor",
         spikedash="dot",
-        spikecolor="#8a94a6",
+        spikecolor="#64748b",
     )
     fig.update_yaxes(
         title_text=f"价格 ({currency})",
         row=1,
         col=1,
-        gridcolor="#e9edf4",
+        gridcolor=GRID_COLOR,
         tickformat=".2f",
     )
     fig.update_yaxes(
         title_text=volume_label,
         row=2,
         col=1,
-        gridcolor="#eef1f6",
+        gridcolor=GRID_COLOR,
         tickformat="~s",
     )
 
-    return fig
+    return _apply_dark_theme(fig)
 
 
 def plot_intraday(df: pd.DataFrame, market: str = "CN") -> go.Figure:
@@ -226,6 +269,7 @@ def plot_intraday(df: pd.DataFrame, market: str = "CN") -> go.Figure:
             mode="lines",
             name="成交价",
             line=dict(color=price_color, width=2),
+            connectgaps=True,
             fill="tozeroy",
             fillcolor=price_fill,
             customdata=price_change_pct.round(2).to_numpy(),
@@ -246,6 +290,7 @@ def plot_intraday(df: pd.DataFrame, market: str = "CN") -> go.Figure:
             mode="lines",
             name="均价",
             line=dict(color="#f39c12", width=1.5),
+            connectgaps=True,
             hovertemplate="均价: ¥%{y:.2f}<extra></extra>",
         ),
         row=1,
@@ -352,7 +397,7 @@ def plot_intraday(df: pd.DataFrame, market: str = "CN") -> go.Figure:
     ]
     fig.update_layout(
         title=dict(text="当日分时", x=0.01, xanchor="left"),
-        template="plotly_white",
+        template="plotly_dark",
         height=620,
         hovermode="x unified",
         margin=dict(l=35, r=25, t=95, b=35),
@@ -363,9 +408,9 @@ def plot_intraday(df: pd.DataFrame, market: str = "CN") -> go.Figure:
             x=1,
             xanchor="right",
         ),
-        font=dict(family="Arial, Microsoft YaHei, sans-serif", color="#25324a"),
-        plot_bgcolor="#fbfcfe",
-        paper_bgcolor="white",
+        font=dict(family="Arial, Microsoft YaHei, sans-serif", color=TEXT_COLOR),
+        plot_bgcolor=PLOT_BG,
+        paper_bgcolor=CHART_BG,
         bargap=0.08,
         updatemenus=[
             dict(
@@ -377,9 +422,9 @@ def plot_intraday(df: pd.DataFrame, market: str = "CN") -> go.Figure:
                 y=0.32,
                 yanchor="middle",
                 pad=dict(r=4, t=0),
-                bgcolor="white",
-                bordercolor="#d7dce5",
-                font=dict(size=11),
+                bgcolor="#111b2c",
+                bordercolor="#26384f",
+                font=dict(size=11, color=TEXT_COLOR),
                 buttons=[
                     dict(
                         label="成交量（股）",
@@ -409,12 +454,12 @@ def plot_intraday(df: pd.DataFrame, market: str = "CN") -> go.Figure:
             )
         ],
         tickformat="%H:%M",
-        gridcolor="#e9edf4",
+        gridcolor=GRID_COLOR,
         showspikes=True,
         spikemode="across",
         spikesnap="cursor",
         spikedash="dot",
-        spikecolor="#8a94a6",
+        spikecolor="#64748b",
     )
     fig.update_yaxes(
         title_text="价格（CNY）",
@@ -422,7 +467,7 @@ def plot_intraday(df: pd.DataFrame, market: str = "CN") -> go.Figure:
         row=1,
         col=1,
         secondary_y=False,
-        gridcolor="#e9edf4",
+        gridcolor=GRID_COLOR,
     )
     fig.update_yaxes(
         title_text="涨跌幅（%）",
@@ -438,10 +483,10 @@ def plot_intraday(df: pd.DataFrame, market: str = "CN") -> go.Figure:
         title_text="成交量（股）",
         row=2,
         col=1,
-        gridcolor="#eef1f6",
+        gridcolor=GRID_COLOR,
         tickformat="~s",
     )
-    return fig
+    return _apply_dark_theme(fig)
 
 
 def plot_rsi(df: pd.DataFrame, period: int) -> go.Figure:
@@ -454,26 +499,26 @@ def plot_rsi(df: pd.DataFrame, period: int) -> go.Figure:
         x=df.index,
         y=df['RSI'],
         name=f'RSI ({period})',
-        line=dict(color='blue', width=2)
+        line=dict(color='#22d3ee', width=2)
     ))
 
     # 添加超买超卖线
-    fig.add_hline(y=70, line_dash="dash", line_color="red",
+    fig.add_hline(y=70, line_dash="dash", line_color="#fb7185",
                   annotation_text="Overbought (70)")
-    fig.add_hline(y=30, line_dash="dash", line_color="green",
+    fig.add_hline(y=30, line_dash="dash", line_color="#2dd4bf",
                   annotation_text="Oversold (30)")
     fig.add_hline(y=50, line_dash="dot", line_color="gray", opacity=0.5)
 
     fig.update_layout(
         title=f'Relative Strength Index (RSI) - Period: {period}',
         yaxis_title='RSI Value',
-        template='plotly_white',
+        template='plotly_dark',
         height=400,
         yaxis=dict(range=[0, 100])
     )
     fig.update_xaxes(rangebreaks=_trading_day_rangebreaks(df.index))
 
-    return fig
+    return _apply_dark_theme(fig)
 
 
 def plot_macd(df: pd.DataFrame) -> go.Figure:
@@ -486,23 +531,23 @@ def plot_macd(df: pd.DataFrame) -> go.Figure:
     # 价格
     fig.add_trace(go.Scatter(
         x=df.index, y=df['Close'],
-        name='Price', line=dict(color='black', width=1)
+        name='Price', line=dict(color='#cbd7e6', width=1.4)
     ), row=1, col=1)
 
     # MACD
     fig.add_trace(go.Scatter(
         x=df.index, y=df['MACD'],
-        name='MACD', line=dict(color='blue', width=2)
+        name='MACD', line=dict(color='#22d3ee', width=2)
     ), row=2, col=1)
 
     # Signal
     fig.add_trace(go.Scatter(
         x=df.index, y=df['Signal'],
-        name='Signal', line=dict(color='red', width=2)
+        name='Signal', line=dict(color='#fbbf24', width=2)
     ), row=2, col=1)
 
     # Histogram
-    colors = ['green' if val >= 0 else 'red' for val in df['Histogram']]
+    colors = ['#2dd4bf' if val >= 0 else '#fb7185' for val in df['Histogram']]
     fig.add_trace(go.Bar(
         x=df.index, y=df['Histogram'],
         name='Histogram', marker_color=colors
@@ -510,7 +555,7 @@ def plot_macd(df: pd.DataFrame) -> go.Figure:
 
     fig.update_layout(
         title='MACD Indicator',
-        template='plotly_white',
+        template='plotly_dark',
         height=600,
         showlegend=True
     )
@@ -520,4 +565,4 @@ def plot_macd(df: pd.DataFrame) -> go.Figure:
     fig.update_xaxes(title_text="Date", row=2, col=1)
     fig.update_xaxes(rangebreaks=_trading_day_rangebreaks(df.index))
 
-    return fig
+    return _apply_dark_theme(fig)

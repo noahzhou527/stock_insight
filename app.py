@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import os
 import importlib
+import html
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -24,6 +25,12 @@ from analysis import (
     calculate_rsi,
 )
 from indicator_help import render_indicator_help
+from market_snapshot import (
+    fetch_a_share_market_snapshot,
+    flatten_a_share_universe,
+    rank_snapshot,
+)
+from news_fetcher import fetch_recent_financial_news
 from visualization import plot_candlestick, plot_intraday, plot_rsi, plot_macd
 
 # Streamlit reruns the app in the same process, so refresh the separately
@@ -54,29 +61,41 @@ st.set_page_config(
 st.markdown("""
 <style>
     :root {
-        --brand: #2563eb;
-        --brand-deep: #1d4ed8;
-        --ink: #172033;
-        --muted: #667085;
-        --line: #e6eaf0;
-        --surface: #ffffff;
-        --canvas: #f5f7fb;
+        --brand: #22d3ee;
+        --brand-strong: #67e8f9;
+        --accent: #8b5cf6;
+        --positive: #2dd4bf;
+        --negative: #fb7185;
+        --ink: #e6edf7;
+        --muted: #8b9bb1;
+        --line: #1c293b;
+        --line-strong: #26384f;
+        --surface: #0d1422;
+        --surface-raised: #111b2c;
+        --canvas: #070b14;
+    }
+    html, body, [class*="css"] {
+        font-family: Inter, "SF Pro Display", "Microsoft YaHei", system-ui, sans-serif;
     }
     .stApp {
         background:
-            radial-gradient(circle at 50% -10%, rgba(37, 99, 235, 0.09), transparent 30rem),
+            radial-gradient(circle at 50% -8%, rgba(34, 211, 238, 0.10), transparent 34rem),
+            radial-gradient(circle at 100% 16%, rgba(139, 92, 246, 0.07), transparent 28rem),
             var(--canvas);
+        color: var(--ink);
     }
     [data-testid="stHeader"] {
-        background: transparent;
+        background: rgba(7, 11, 20, 0.72);
+        backdrop-filter: blur(14px);
+        border-bottom: 1px solid rgba(28, 41, 59, 0.55);
     }
     [data-testid="stMainBlockContainer"] {
         max-width: 1380px;
-        padding-top: 2.2rem;
+        padding-top: 2rem;
         padding-bottom: 4rem;
     }
     [data-testid="stSidebar"] {
-        background: rgba(255, 255, 255, 0.94);
+        background: rgba(9, 15, 26, 0.97);
         border-right: 1px solid var(--line);
     }
     [data-testid="stSidebar"] [data-testid="stSidebarContent"] {
@@ -87,16 +106,21 @@ st.markdown("""
         color: var(--ink);
         letter-spacing: -0.02em;
     }
+    [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
+    [data-testid="stSidebar"] label {
+        color: #a9b7ca;
+    }
     .main-header {
-        font-size: clamp(2.15rem, 4vw, 3.15rem);
-        font-weight: 800;
+        font-size: clamp(2rem, 4vw, 2.9rem);
+        font-weight: 750;
         line-height: 1.05;
-        letter-spacing: -0.045em;
-        background: linear-gradient(120deg, #172033 20%, #2563eb 78%);
+        letter-spacing: -0.04em;
+        background: linear-gradient(110deg, #f3f8ff 15%, #67e8f9 58%, #a78bfa 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         text-align: center;
-        margin: 0.35rem 0 1.4rem;
+        margin: 0.25rem 0 1.35rem;
+        filter: drop-shadow(0 0 24px rgba(34, 211, 238, 0.12));
     }
     .nav-label {
         color: var(--muted);
@@ -107,33 +131,56 @@ st.markdown("""
         margin: 0 0 0.4rem 0.15rem;
     }
     [data-testid="stVerticalBlockBorderWrapper"] {
-        background: rgba(255, 255, 255, 0.9);
-        border-color: rgba(214, 220, 230, 0.92) !important;
+        background: linear-gradient(145deg, rgba(17, 27, 44, 0.94), rgba(11, 18, 31, 0.96));
+        border-color: var(--line) !important;
         border-radius: 1rem !important;
-        box-shadow: 0 12px 35px rgba(23, 32, 51, 0.07);
+        box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
     }
     div[data-testid="stSegmentedControl"] [data-baseweb="button-group"] {
         width: 100%;
         padding: 0.24rem;
         border-radius: 0.78rem;
-        background: #f2f4f8;
+        background: #080e19;
+        border: 1px solid var(--line);
     }
     div[data-testid="stSegmentedControl"] button {
         flex: 1;
         min-height: 2.55rem;
         border: 0 !important;
         border-radius: 0.62rem !important;
+        background: #0f1a2b !important;
         font-weight: 650;
-        color: #596579;
+        color: #8fa0b7;
     }
-    div[data-testid="stSegmentedControl"] button[aria-pressed="true"] {
-        background: white !important;
-        color: var(--brand-deep) !important;
-        box-shadow: 0 3px 10px rgba(23, 32, 51, 0.1);
+    div[data-testid="stSegmentedControl"] button[aria-pressed="true"],
+    div[data-testid="stSegmentedControl"] button[aria-checked="true"],
+    div[data-testid="stSegmentedControl"] button[data-active="true"],
+    button[kind="segmented_control"][aria-pressed="true"],
+    button[kind="segmented_control"][aria-checked="true"],
+    button[kind="segmented_control"][data-active="true"] {
+        background: #172337 !important;
+        color: var(--brand-strong) !important;
+        box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.28), 0 6px 18px rgba(0, 0, 0, 0.22);
+    }
+    div[data-testid="stSegmentedControl"] button * {
+        color: inherit !important;
+    }
+    button[data-variant="segmented_control"] {
+        background: #0f1a2b !important;
+        color: #8fa0b7 !important;
+    }
+    button[data-variant="segmented_control"][aria-checked="true"],
+    button[data-variant="segmented_control"][data-selected="true"] {
+        background: #172337 !important;
+        color: var(--brand-strong) !important;
+        box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.28), 0 6px 18px rgba(0, 0, 0, 0.22);
+    }
+    button[data-variant="segmented_control"] * {
+        color: inherit !important;
     }
     .metric-card {
         background-color: var(--surface);
-        border-radius: 10px;
+        border-radius: 12px;
         padding: 1rem;
         text-align: center;
     }
@@ -142,8 +189,13 @@ st.markdown("""
         padding: 1.05rem 1.15rem;
         border: 1px solid var(--line);
         border-radius: 0.9rem;
-        background: var(--surface);
-        box-shadow: 0 5px 18px rgba(23, 32, 51, 0.045);
+        background: linear-gradient(145deg, rgba(17, 27, 44, 0.98), rgba(12, 20, 34, 0.98));
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+        transition: border-color 160ms ease, transform 160ms ease;
+    }
+    [data-testid="stMetric"]:hover {
+        border-color: var(--line-strong);
+        transform: translateY(-1px);
     }
     [data-testid="stMetricLabel"] {
         color: var(--muted);
@@ -188,34 +240,65 @@ st.markdown("""
         gap: 0.35rem;
         padding: 0.3rem;
         border-radius: 0.85rem;
-        background: #e9edf4;
+        background: #080e19;
+        border: 1px solid var(--line);
     }
     .stTabs [data-baseweb="tab"] {
         padding: 0.65rem 1rem;
         border-radius: 0.65rem;
         font-weight: 600;
-        color: #5b6678;
+        color: #8fa0b7;
     }
     .stTabs [aria-selected="true"] {
-        background: white;
-        color: var(--brand-deep) !important;
-        box-shadow: 0 2px 8px rgba(23, 32, 51, 0.08);
+        background: #172337;
+        color: var(--brand-strong) !important;
+        box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.22);
     }
     .stTabs [data-baseweb="tab-highlight"] {
         display: none;
     }
     .stButton > button {
         border-radius: 0.7rem;
-        border-color: #d7dce5;
+        border-color: var(--line-strong);
+        background: #111b2c;
+        color: #d9e4f2;
         font-weight: 650;
+    }
+    .stButton > button:hover {
+        border-color: var(--brand);
+        color: var(--brand-strong);
+        background: #152338;
+    }
+    [data-baseweb="select"] > div,
+    [data-baseweb="input"] > div,
+    [data-baseweb="textarea"] > div,
+    [data-testid="stDateInput"] input,
+    [data-testid="stNumberInput"] input {
+        background-color: #0b1320 !important;
+        border-color: var(--line-strong) !important;
+        color: var(--ink) !important;
+    }
+    [data-baseweb="popover"],
+    [data-baseweb="menu"],
+    [data-baseweb="calendar"] {
+        background-color: #111b2c !important;
+        color: var(--ink) !important;
+    }
+    [data-testid="stExpander"] {
+        border-color: var(--line) !important;
+        background: rgba(13, 20, 34, 0.72);
+        border-radius: 0.85rem;
     }
     [data-testid="stPlotlyChart"],
     [data-testid="stDataFrame"] {
         overflow: hidden;
         border: 1px solid var(--line);
         border-radius: 1rem;
-        background: white;
-        box-shadow: 0 7px 24px rgba(23, 32, 51, 0.045);
+        background: var(--surface);
+        box-shadow: 0 14px 34px rgba(0, 0, 0, 0.18);
+    }
+    [data-testid="stDataFrame"] iframe {
+        color-scheme: dark;
     }
     hr {
         border-color: var(--line) !important;
@@ -237,7 +320,7 @@ st.markdown("""
         padding: 0.9rem 1rem;
         border: 1px solid var(--line);
         border-radius: 0.8rem;
-        background: #fafbfc;
+        background: #0b1320;
     }
     .indicator-summary-card strong,
     .rsi-zone-card strong {
@@ -256,23 +339,23 @@ st.markdown("""
         border-top-width: 3px;
     }
     .rsi-zone-card.oversold {
-        border-top-color: #22a06b;
-        background: #f2fbf7;
+        border-top-color: var(--positive);
+        background: rgba(45, 212, 191, 0.07);
     }
     .rsi-zone-card.neutral {
         border-top-color: #64748b;
     }
     .rsi-zone-card.overbought {
-        border-top-color: #e05260;
-        background: #fff7f7;
+        border-top-color: var(--negative);
+        background: rgba(251, 113, 133, 0.07);
     }
     .indicator-note {
         margin-top: 0.75rem;
         padding: 0.75rem 0.9rem;
-        border-left: 3px solid #94a3b8;
+        border-left: 3px solid var(--brand);
         border-radius: 0 0.55rem 0.55rem 0;
-        background: #f6f8fb;
-        color: #5b6678;
+        background: rgba(34, 211, 238, 0.055);
+        color: #9babc0;
         font-size: 0.86rem;
         line-height: 1.6;
     }
@@ -285,9 +368,9 @@ st.markdown("""
     .pe-formula-card {
         min-height: 9rem;
         padding: 1.1rem 0.8rem;
-        border: 1px solid #e1e5eb;
+        border: 1px solid var(--line);
         border-radius: 0.8rem;
-        background: #fafbfc;
+        background: #0b1320;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -295,7 +378,7 @@ st.markdown("""
         gap: 0.8rem;
     }
     .pe-formula-title {
-        color: #5c6675;
+        color: #93a4ba;
         font-size: 0.9rem;
         font-weight: 600;
     }
@@ -304,7 +387,7 @@ st.markdown("""
         align-items: center;
         justify-content: center;
         gap: 0.55rem;
-        color: #2f3542;
+        color: #dce7f5;
         font-family: "Times New Roman", "Microsoft YaHei", serif;
         font-size: 1.15rem;
         line-height: 1.45;
@@ -328,9 +411,64 @@ st.markdown("""
     .pe-fraction span:last-child {
         padding: 0.2rem 0.5rem 0;
     }
+    [data-testid="stAlert"] {
+        background: rgba(17, 27, 44, 0.92);
+        border: 1px solid var(--line-strong);
+        color: #cbd7e6;
+    }
+    [data-testid="stDownloadButton"] button {
+        background: linear-gradient(110deg, #0891b2, #2563eb);
+        border: 0;
+        color: white;
+    }
+    a { color: var(--brand-strong); }
+    .nav-context {
+        margin-top: 0.85rem;
+        padding-top: 0.85rem;
+        border-top: 1px solid rgba(38, 56, 79, 0.72);
+    }
+    .ranking-header,
+    .news-header {
+        margin: 0.35rem 0 1.15rem;
+    }
+    .ranking-header h2,
+    .news-header h2 {
+        margin-bottom: 0.3rem;
+        color: var(--ink);
+        letter-spacing: -0.025em;
+    }
+    .ranking-header p,
+    .news-header p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.9rem;
+    }
+    .news-source-badge {
+        display: inline-flex;
+        align-items: center;
+        min-width: 4.5rem;
+        justify-content: center;
+        padding: 0.25rem 0.55rem;
+        border: 1px solid var(--line-strong);
+        border-radius: 999px;
+        background: #101b2c;
+        color: var(--brand-strong);
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+    }
+    .news-time {
+        color: var(--muted);
+        font-size: 0.78rem;
+        white-space: nowrap;
+    }
     @media (max-width: 900px) {
         [data-testid="stMainBlockContainer"] {
             padding-top: 1rem;
+        }
+        .nav-context {
+            margin-top: 0.65rem;
+            padding-top: 0.65rem;
         }
         .pe-formula-grid {
             grid-template-columns: 1fr;
@@ -346,51 +484,253 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+
+def is_a_share_trading_session() -> bool:
+    now = datetime.now(ZoneInfo("Asia/Shanghai"))
+    if now.weekday() >= 5:
+        return False
+    current = now.time()
+    return (
+        datetime.strptime("09:30", "%H:%M").time()
+        <= current
+        <= datetime.strptime("11:30", "%H:%M").time()
+    ) or (
+        datetime.strptime("13:00", "%H:%M").time()
+        <= current
+        <= datetime.strptime("15:00", "%H:%M").time()
+    )
+
+
+@st.cache_data(ttl=25, show_spinner=False)
+def load_a_share_market_snapshot():
+    universe_rows = flatten_a_share_universe(A_SHARE_UNIVERSE)
+    return fetch_a_share_market_snapshot(universe_rows)
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def load_recent_financial_news(hours=72):
+    return fetch_recent_financial_news(hours=hours)
+
+
+RANKING_CONFIG = {
+    "change_pct": ("涨幅榜", "涨跌幅", 1.0, "%.2f%%"),
+    "amount": ("成交额榜", "成交额（亿元）", 1e8, "%.2f"),
+    "market_cap": ("市值榜", "总市值（亿元）", 1e8, "%.2f"),
+    "pe_ttm": ("市盈率榜", "PE TTM", 1.0, "%.2f"),
+}
+
+
+def render_ranking_table(snapshot, metric):
+    title, metric_label, divisor, number_format = RANKING_CONFIG[metric]
+    ranked = rank_snapshot(snapshot, metric).copy()
+    ranked[metric] = pd.to_numeric(ranked[metric], errors="coerce") / divisor
+    columns = ["rank", "name", "ticker", "industry", metric, "quote_time", "stale"]
+    display = ranked.reindex(columns=columns).rename(
+        columns={
+            "rank": "排名",
+            "name": "股票",
+            "ticker": "代码",
+            "industry": "赛道",
+            metric: metric_label,
+            "quote_time": "数据时间",
+            "stale": "状态",
+        }
+    )
+    display["状态"] = display["状态"].map({True: "缓存", False: "实时"}).fillna("实时")
+    st.dataframe(
+        display,
+        width="stretch",
+        height=560,
+        hide_index=True,
+        column_config={
+            "排名": st.column_config.NumberColumn(width="small", format="%d"),
+            metric_label: st.column_config.NumberColumn(format=number_format),
+            "状态": st.column_config.TextColumn(width="small"),
+        },
+        key=f"a-share-ranking:{metric}",
+    )
+    st.caption(f"{title}覆盖 A_SHARE_UNIVERSE 全部 {len(display)} 只股票。")
+
+
+@st.fragment(run_every="30s" if is_a_share_trading_session() else None)
+def render_a_share_rankings():
+    header_col, action_col = st.columns([5, 1])
+    with header_col:
+        st.markdown(
+            """
+            <div class="ranking-header">
+                <h2>A股股票池排行</h2>
+                <p>覆盖全部产业链标的，实时指标与最新完成日 K 估值分开计算。</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with action_col:
+        manually_refreshed = st.button(
+            "立即刷新", key="refresh-a-share-rankings", width="stretch"
+        )
+    if manually_refreshed:
+        load_a_share_market_snapshot.clear()
+
+    try:
+        with st.spinner("正在更新 A股股票池快照..."):
+            snapshot = load_a_share_market_snapshot()
+    except Exception as error:
+        st.error(f"排行榜暂时无法更新：{error}")
+        return
+
+    if snapshot.empty:
+        st.warning("暂时没有可用于排行榜的 A股行情。")
+        return
+
+    stale_series = snapshot.get("stale", pd.Series(False, index=snapshot.index))
+    stale_count = int(stale_series.fillna(False).sum())
+    quote_times = snapshot.get("quote_time")
+    latest_quote_time = ""
+    if quote_times is not None and quote_times.notna().any():
+        latest_quote_time = str(quote_times.dropna().max())
+    refresh_note = "交易时段每 30 秒刷新" if is_a_share_trading_session() else "非交易时段停止自动刷新"
+    stale_note = f" · {stale_count} 只使用缓存" if stale_count else ""
+    st.caption(
+        f"排行榜数据来源：东方财富 · {refresh_note}"
+        f"{f' · 数据时间 {latest_quote_time}' if latest_quote_time else ''}{stale_note}"
+    )
+
+    ranking_tabs = st.tabs([config[0] for config in RANKING_CONFIG.values()])
+    for tab, metric in zip(ranking_tabs, RANKING_CONFIG):
+        with tab:
+            render_ranking_table(snapshot, metric)
+
+
+def _format_news_time(value):
+    if value is None:
+        return "采集时间未知"
+    timestamp = pd.Timestamp(value)
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.tz_localize("Asia/Shanghai")
+    else:
+        timestamp = timestamp.tz_convert("Asia/Shanghai")
+    return timestamp.strftime("%m-%d %H:%M")
+
+
+def render_news_page():
+    header_col, action_col = st.columns([5, 1])
+    with header_col:
+        st.markdown(
+            """
+            <div class="news-header">
+                <h2>新闻热点</h2>
+                <p>最近 72 小时财经快报 · Yahoo 3 条 / 同花顺 4 条 / 抖音 3 条</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with action_col:
+        manually_refreshed = st.button(
+            "刷新热点", key="refresh-financial-news", width="stretch"
+        )
+    if manually_refreshed:
+        load_recent_financial_news.clear()
+
+    try:
+        with st.spinner("正在汇总财经热点..."):
+            items, source_status = load_recent_financial_news(72)
+    except Exception as error:
+        st.error(f"新闻热点暂时无法加载：{error}")
+        return
+
+    if not items:
+        st.warning("最近 72 小时暂未读取到可显示的财经热点。")
+    for item in items:
+        effective_time = getattr(item, "published_at", None) or getattr(item, "observed_at", None)
+        with st.container(border=True):
+            source_col, title_col, time_col, link_col = st.columns([1.1, 6.8, 1.4, 1.2])
+            with source_col:
+                st.markdown(
+                    f'<span class="news-source-badge">{html.escape(item.source)}</span>',
+                    unsafe_allow_html=True,
+                )
+            with title_col:
+                st.markdown(f"**{html.escape(item.title)}**")
+            with time_col:
+                st.markdown(
+                    f'<span class="news-time">{_format_news_time(effective_time)}</span>',
+                    unsafe_allow_html=True,
+                )
+            with link_col:
+                st.link_button("查看原文", item.url, width="stretch")
+
+    non_ok_status = [
+        f"{source}：{status}"
+        for source, status in source_status.items()
+        if status and str(status).lower() not in {"ok", "正常"}
+    ]
+    if non_ok_status:
+        st.caption(" · ".join(non_ok_status))
+
+
 # ============ 标题区域 ============
 st.markdown('<div class="main-header">Stock Insight</div>', unsafe_allow_html=True)
 
 # ============ 顶部导航 ============
 nav_spacer_left, nav_area, nav_spacer_right = st.columns([1, 5, 1])
+market_label = None
+a_share_view = None
 with nav_area:
     with st.container(border=True):
-        current_page = st.session_state.get("page_navigation", "行情分析")
-        if current_page == "指标说明":
-            page_left, page_nav, page_right = st.columns([1, 2, 1])
-        else:
-            page_nav, market_nav = st.columns(2, gap="large")
-
-        with page_nav:
-            st.markdown('<div class="nav-label">页面导航</div>', unsafe_allow_html=True)
-            page = st.segmented_control(
-                "页面导航",
-                ["行情分析", "指标说明"],
-                default="行情分析",
-                key="page_navigation",
-                label_visibility="collapsed",
-                width="stretch",
-            )
+        page = st.segmented_control(
+            "主导航",
+            ["行情分析", "指标说明", "新闻热点"],
+            default="行情分析",
+            key="page_navigation",
+            label_visibility="collapsed",
+            width="stretch",
+        )
         if page == "行情分析":
+            st.markdown('<div class="nav-context"></div>', unsafe_allow_html=True)
+            market_nav, a_share_nav = st.columns(2, gap="large")
             with market_nav:
                 st.markdown('<div class="nav-label">股票市场</div>', unsafe_allow_html=True)
                 market_label = st.segmented_control(
                     "股票市场",
-                    ["美股", "中国 A 股"],
+                    ["美股", "A股"],
                     default="美股",
+                    key="market_navigation",
                     label_visibility="collapsed",
                     width="stretch",
                 )
+            a_share_view = "个股分析"
+            if market_label == "A股":
+                with a_share_nav:
+                    st.markdown('<div class="nav-label">A股视图</div>', unsafe_allow_html=True)
+                    a_share_view = st.segmented_control(
+                        "A股视图",
+                        ["个股分析", "股票池排行"],
+                        default="个股分析",
+                        key="a_share_view_navigation",
+                        label_visibility="collapsed",
+                        width="stretch",
+                    )
 
-# 页面导航独立于行情筛选；查看说明时不发起行情网络请求。
+# 非行情页面在构建侧栏及请求市场数据前完成路由。
 if page == "指标说明":
     st.markdown("---")
     render_indicator_help()
+    st.stop()
+if page == "新闻热点":
+    st.markdown("---")
+    render_news_page()
+    st.stop()
+if market_label == "A股" and a_share_view == "股票池排行":
+    st.markdown("---")
+    render_a_share_rankings()
     st.stop()
 
 # ============ 侧边栏控制面板 ============
 st.sidebar.header("行情参数")
 
 # 股票市场与标的选择
-market = "CN" if market_label == "中国 A 股" else "US"
+market = "CN" if market_label == "A股" else "US"
 ths_access_token = get_ths_access_token()
 
 if market == "CN":
@@ -474,6 +814,38 @@ def load_data(ticker, start, end, market, ths_access_token):
     )
 
 
+def indicator_warmup_start(
+    display_start,
+    ma_periods,
+    rsi_period,
+    show_bbi,
+    show_boll,
+):
+    """Return an earlier request date so indicators are complete at the left edge."""
+    required_sessions = [35, rsi_period + 1, *ma_periods]
+    if show_bbi:
+        required_sessions.append(24)
+    if show_boll:
+        required_sessions.append(20)
+
+    # Add weekday headroom for exchange holidays and occasional missing sessions.
+    warmup_sessions = max(required_sessions) + 15
+    return (
+        pd.Timestamp(display_start).normalize()
+        - pd.offsets.BDay(warmup_sessions)
+    ).date()
+
+
+def trim_to_display_range(frame, display_start, display_end):
+    """Keep only the user-selected range while preserving provider metadata."""
+    attrs = frame.attrs.copy()
+    start = pd.Timestamp(display_start)
+    end = pd.Timestamp(display_end)
+    trimmed = frame.loc[(frame.index >= start) & (frame.index <= end)].copy()
+    trimmed.attrs.update(attrs)
+    return trimmed
+
+
 VALUATION_CACHE_VERSION = 4
 
 
@@ -495,22 +867,6 @@ def load_financial_reports(ticker):
 @st.cache_data(ttl=25, show_spinner=False)
 def load_intraday(ticker):
     return fetch_a_share_intraday(ticker)
-
-
-def is_a_share_trading_session() -> bool:
-    now = datetime.now(ZoneInfo("Asia/Shanghai"))
-    if now.weekday() >= 5:
-        return False
-    current = now.time()
-    return (
-        datetime.strptime("09:30", "%H:%M").time()
-        <= current
-        <= datetime.strptime("11:30", "%H:%M").time()
-    ) or (
-        datetime.strptime("13:00", "%H:%M").time()
-        <= current
-        <= datetime.strptime("15:00", "%H:%M").time()
-    )
 
 
 @st.fragment(run_every="30s")
@@ -554,14 +910,28 @@ loading_message = st.empty()
 
 try:
     loading_message.info(f"正在获取 {ticker} 数据...")
-    df = load_data(ticker, start_date, end_date, market, ths_access_token)
+    calculation_start_date = indicator_warmup_start(
+        start_date,
+        ma_periods,
+        rsi_period,
+        show_bbi,
+        show_boll,
+    )
+    indicator_history_df = load_data(
+        ticker,
+        calculation_start_date,
+        end_date,
+        market,
+        ths_access_token,
+    )
+    df = trim_to_display_range(indicator_history_df, start_date, end_date)
     loading_message.empty()
 
     if df.empty:
         st.error(f"无法获取 {ticker} 的数据，请检查股票代码是否正确。")
         st.stop()
 
-    data_source = df.attrs.get("source", "Yahoo Finance")
+    data_source = indicator_history_df.attrs.get("source", "Yahoo Finance")
     st.success(f"成功加载 {ticker} 从 {start_date} 到 {end_date} 的数据")
     if data_source in {"同花顺", "同花顺 iFinD"}:
         st.caption("数据来源：同花顺")
@@ -753,13 +1123,14 @@ with tab1:
     volume_metric = "amount" if volume_metric_label == "成交额" else "volume"
 
     # 计算移动平均线
-    df_with_ma = df.copy()
+    df_with_ma = indicator_history_df.copy()
     for period in ma_periods:
         df_with_ma[f'MA_{period}'] = calculate_ma(df_with_ma, period)
     if show_bbi:
         df_with_ma["BBI"] = calculate_bbi(df_with_ma)
     if show_boll:
         df_with_ma = calculate_bollinger_bands(df_with_ma)
+    df_with_ma = trim_to_display_range(df_with_ma, start_date, end_date)
 
     # 绘制K线图
     fig = plot_candlestick(
@@ -778,7 +1149,7 @@ with tab_intraday:
     if market == "CN":
         render_intraday_panel(ticker)
     else:
-        st.info("当日分时图目前用于中国 A 股。")
+        st.info("当日分时图目前用于 A股。")
 
 # ============ Tab 2: 技术指标 ============
 with tab2:
@@ -786,7 +1157,8 @@ with tab2:
 
     with col1:
         st.subheader("RSI (相对强弱指标)")
-        df['RSI'] = calculate_rsi(df, rsi_period)
+        history_rsi = calculate_rsi(indicator_history_df, rsi_period)
+        df['RSI'] = history_rsi.reindex(df.index)
         fig_rsi = plot_rsi(df, rsi_period)
         st.plotly_chart(fig_rsi, width="stretch")
 
@@ -801,7 +1173,8 @@ with tab2:
 
     with col2:
         st.subheader("MACD (指数平滑异同平均线)")
-        df_macd = calculate_macd(df)
+        df_macd = calculate_macd(indicator_history_df)
+        df_macd = trim_to_display_range(df_macd, start_date, end_date)
         fig_macd = plot_macd(df_macd)
         st.plotly_chart(fig_macd, width="stretch")
 
@@ -904,7 +1277,7 @@ with tab4:
 with tab5:
     st.subheader("年度与季度财务报告")
     if market != "CN":
-        st.info("财务报表视图目前用于中国 A 股。")
+        st.info("财务报表视图目前用于 A股。")
     else:
         try:
             financial_reports = load_financial_reports(ticker)
@@ -920,7 +1293,7 @@ with tab5:
             if annual_reports.empty:
                 st.info("暂未读取到上一财年年报。")
             else:
-                st.dataframe(
+                st.table(
                     annual_reports,
                     width="stretch",
                     hide_index=True,
@@ -930,7 +1303,7 @@ with tab5:
             if quarter_reports.empty:
                 st.info("最新财年尚未披露季报。")
             else:
-                st.dataframe(
+                st.table(
                     quarter_reports,
                     width="stretch",
                     hide_index=True,
@@ -942,6 +1315,6 @@ with tab5:
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #666; font-size: 0.9rem;">
-    <p>Stock Insight | Personal market analysis dashboard | Data: Tonghuashun & Yahoo Finance</p>
+    <p>Stock Insight | Personal market analysis dashboard | Data: Tonghuashun, Yahoo Finance, Eastmoney & Douyin</p>
 </div>
 """, unsafe_allow_html=True)

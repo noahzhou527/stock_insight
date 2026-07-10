@@ -17,6 +17,8 @@ Stock Insight currently supports:
 - Trading-calendar cleanup that hides weekends and missing exchange sessions
 - A-share intraday charts with price, average price, previous close, percentage scale, and volume/traded-amount toggle
 - A-share valuation overview with PE TTM, static PE, dynamic PE, and market cap
+- Full-universe A-share rankings for intraday gain, traded amount, market cap, and PE TTM
+- A 72-hour financial-news view combining Yahoo Finance, Tonghuashun, and Douyin hot topics
 - Latest annual report plus current fiscal-year quarterly financial reports
 - RSI and MACD technical indicator panels
 - A dedicated indicator explanation page
@@ -28,6 +30,8 @@ Stock Insight currently supports:
 stock_insight/
 |-- app.py                 # Main Streamlit application
 |-- data_fetcher.py        # Yahoo Finance and Tonghuashun data acquisition
+|-- market_snapshot.py     # Batch A-share rankings and snapshot cache
+|-- news_fetcher.py        # Three-source financial-news aggregation
 |-- analysis.py            # Technical indicator calculations
 |-- visualization.py       # Plotly chart builders
 |-- indicator_help.py      # Indicator explanation page
@@ -110,6 +114,8 @@ The real secrets file is ignored by Git.
 | **Volume/Amount Toggle** | Switch chart subplots between traded volume and traded amount |
 | **Valuation View** | PE TTM, static PE, dynamic PE, and market cap for A shares |
 | **Financial Reports** | Latest annual report and current fiscal-year quarterly reports |
+| **A-share Rankings** | Full curated-universe rankings with live intraday refresh |
+| **Financial News** | Recent Yahoo Finance, Tonghuashun, and Douyin financial headlines |
 | **Indicator Guide** | Built-in explanations for formulas and interpretation |
 | **Data Export** | Download raw data as CSV |
 
@@ -121,6 +127,8 @@ The real secrets file is ignored by Git.
 | --- | --- | --- |
 | US stocks | Daily OHLCV and market cap | Yahoo Finance / `yfinance` |
 | China A shares | Daily OHLCV, valuation, intraday, financial reports | Tonghuashun public pages |
+| China A-share universe | Batch quote rankings | Eastmoney public quote pages |
+| Financial news | Headlines and hot topics | Yahoo Finance, Tonghuashun, Douyin |
 | Beijing Stock Exchange | Daily prices when configured | Tonghuashun iFinD token path |
 
 ### Technical Indicators

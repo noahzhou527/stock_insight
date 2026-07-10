@@ -11,4 +11,5 @@ venv/
 .vscode/
 
 data/cache/*.csv
+data/cache/*.json
 !data/cache/.gitkeep
