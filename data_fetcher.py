@@ -145,9 +145,14 @@ def _standardize_price_frame(df: pd.DataFrame) -> pd.DataFrame:
             f"The market-data provider response is missing columns: {', '.join(missing)}.",
         )
 
-    df = df[REQUIRED_PRICE_COLUMNS].sort_index()
+    retained_columns = [*REQUIRED_PRICE_COLUMNS]
+    if "Amount" in df.columns:
+        retained_columns.append("Amount")
+    df = df[retained_columns].sort_index()
     for column in REQUIRED_PRICE_COLUMNS:
         df[column] = pd.to_numeric(df[column], errors="coerce")
+    if "Amount" in df.columns:
+        df["Amount"] = pd.to_numeric(df["Amount"], errors="coerce")
     return df.dropna(subset=["Open", "High", "Low", "Close"])
 
 
@@ -279,6 +284,7 @@ def _fetch_a_share_year(ticker: str, year: int) -> pd.DataFrame:
                 "Low": values[3],
                 "Close": values[4],
                 "Volume": values[5],
+                "Amount": values[6],
             }
         )
     if not rows:

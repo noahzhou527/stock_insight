@@ -29,6 +29,10 @@ Stock Insight currently supports:
 ```text
 stock_insight/
 |-- app.py                 # Main Streamlit application
+|-- config/                # App settings, page setup, and shared constants
+|-- components/            # Reusable Streamlit controls and presentation components
+|-- pages/                 # Top-level page renderers (news and A-share rankings)
+|-- services/              # Cached data-access and data-range services
 |-- data_fetcher.py        # Yahoo Finance and Tonghuashun data acquisition
 |-- market_snapshot.py     # Batch A-share rankings and snapshot cache
 |-- news_fetcher.py        # Three-source financial-news aggregation
@@ -115,6 +119,7 @@ The real secrets file is ignored by Git.
 | **Valuation View** | PE TTM, static PE, dynamic PE, and market cap for A shares |
 | **Financial Reports** | Latest annual report and current fiscal-year quarterly reports |
 | **A-share Rankings** | Full curated-universe rankings with live intraday refresh |
+| **Market Overview** | China and US benchmark indices, A-share turnover comparison, and market breadth |
 | **Financial News** | Recent Yahoo Finance, Tonghuashun, and Douyin financial headlines |
 | **Indicator Guide** | Built-in explanations for formulas and interpretation |
 | **Data Export** | Download raw data as CSV |
@@ -169,3 +174,12 @@ The real secrets file is ignored by Git.
 - [ ] Saved user preferences
 - [ ] More international markets
 - [ ] More robust valuation and factor-analysis views
+
+## Optional Market Data API Keys
+
+The market overview works without an API key, using the existing Tonghuashun,
+Eastmoney, and Yahoo Finance paths.  For a future, more stable commercial
+source of US market breadth, create a personal API key with a provider such as
+Polygon or Financial Modeling Prep, then store it locally in
+`.streamlit/secrets.toml` (for example `POLYGON_API_KEY = "..."`).  Never
+commit the real secrets file.

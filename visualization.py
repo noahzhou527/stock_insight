@@ -223,7 +223,11 @@ def plot_candlestick(
     return _apply_dark_theme(fig)
 
 
-def plot_intraday(df: pd.DataFrame, market: str = "CN") -> go.Figure:
+def plot_intraday(
+    df: pd.DataFrame,
+    market: str = "CN",
+    volume_metric: str = "volume",
+) -> go.Figure:
     """绘制当日分时价格、均价、昨收线与分钟成交量。"""
     is_a_share = market.upper() == "CN"
     up_color = "#e53935" if is_a_share else "#16a085"
@@ -366,6 +370,7 @@ def plot_intraday(df: pd.DataFrame, market: str = "CN") -> go.Figure:
             marker_color=volume_colors,
             marker_line_width=0,
             opacity=0.82,
+            visible=volume_metric == "volume",
             showlegend=False,
             hovertemplate="成交量: %{y:,.0f} 股<extra></extra>",
         ),
@@ -380,7 +385,7 @@ def plot_intraday(df: pd.DataFrame, market: str = "CN") -> go.Figure:
             marker_color=volume_colors,
             marker_line_width=0,
             opacity=0.82,
-            visible=False,
+            visible=volume_metric == "amount",
             showlegend=False,
             hovertemplate="成交额: ¥%{y:,.0f}<extra></extra>",
         ),
@@ -412,39 +417,6 @@ def plot_intraday(df: pd.DataFrame, market: str = "CN") -> go.Figure:
         plot_bgcolor=PLOT_BG,
         paper_bgcolor=CHART_BG,
         bargap=0.08,
-        updatemenus=[
-            dict(
-                type="buttons",
-                direction="right",
-                active=0,
-                x=0.01,
-                xanchor="left",
-                y=0.32,
-                yanchor="middle",
-                pad=dict(r=4, t=0),
-                bgcolor="#111b2c",
-                bordercolor="#26384f",
-                font=dict(size=11, color=TEXT_COLOR),
-                buttons=[
-                    dict(
-                        label="成交量（股）",
-                        method="update",
-                        args=[
-                            {"visible": [True, True, True, True, True, True, False]},
-                            {"yaxis3.title.text": "成交量（股）"},
-                        ],
-                    ),
-                    dict(
-                        label="成交额（元）",
-                        method="update",
-                        args=[
-                            {"visible": [True, True, True, True, True, False, True]},
-                            {"yaxis3.title.text": "成交额（元）"},
-                        ],
-                    ),
-                ],
-            )
-        ],
     )
     fig.update_xaxes(
         rangebreaks=[
@@ -480,12 +452,72 @@ def plot_intraday(df: pd.DataFrame, market: str = "CN") -> go.Figure:
         showgrid=False,
     )
     fig.update_yaxes(
-        title_text="成交量（股）",
+        title_text="成交额（元）" if volume_metric == "amount" else "成交量（股）",
         row=2,
         col=1,
         gridcolor=GRID_COLOR,
         tickformat="~s",
     )
+    return _apply_dark_theme(fig)
+
+
+def plot_index_intraday(
+    frame: pd.DataFrame,
+    name: str,
+    previous_close: float,
+    market: str = "CN",
+) -> go.Figure:
+    """Render a traditional market-terminal intraday chart around prior close."""
+    prices = pd.to_numeric(frame["Price"], errors="coerce")
+    plotted_values = [prices]
+    average_prices = None
+    if "AvgPrice" in frame.columns:
+        average_prices = pd.to_numeric(frame["AvgPrice"], errors="coerce")
+        if average_prices.notna().any():
+            plotted_values.append(average_prices)
+    deviation = max((series - previous_close).abs().max() for series in plotted_values)
+    price_padding = max(float(deviation) * 1.15, abs(previous_close) * 0.0015)
+    price_range = [previous_close - price_padding, previous_close + price_padding]
+    high, low = float(prices.max()), float(prices.min())
+    fig = go.Figure()
+    fig.add_trace(
+        go.Scatter(
+            x=frame.index,
+            y=prices,
+            mode="lines",
+            name=name,
+            line=dict(color="#1677ff", width=2),
+            connectgaps=True,
+            customdata=((prices / previous_close - 1) * 100).round(2).to_numpy(),
+            hovertemplate="%{x|%H:%M}<br>点位：%{y:.2f}<br>涨跌幅：%{customdata:+.2f}%<extra></extra>",
+        ),
+    )
+    if average_prices is not None and average_prices.notna().any():
+        fig.add_trace(
+            go.Scatter(
+                x=frame.index,
+                y=average_prices,
+                mode="lines",
+                name="均价",
+                line=dict(color="#f5c542", width=1.8),
+                connectgaps=True,
+                hovertemplate="%{x|%H:%M}<br>均价：%{y:.2f}<extra></extra>",
+            )
+        )
+    fig.add_hline(y=high, line_dash="dash", line_color="#d0d0d0", line_width=1, annotation_text=f"最高 {high:.2f}", annotation_font_color="#e53935", annotation_position="top left")
+    fig.add_hline(y=previous_close, line_dash="dash", line_color="#8a94a6", line_width=1.5, annotation_text=f"昨收 {previous_close:.2f} · 0%", annotation_position="top left")
+    fig.add_hline(y=low, line_dash="dash", line_color="#d0d0d0", line_width=1, annotation_text=f"最低 {low:.2f}", annotation_font_color="#1e9d55", annotation_position="bottom left")
+    fig.update_layout(title=dict(text=f"{name} 分时", x=0.01), height=430, margin=dict(l=35, r=25, t=75, b=35), hovermode="x unified", legend=dict(orientation="h", y=1.10, x=1, xanchor="right"))
+    fig.update_xaxes(
+        tickformat="%H:%M",
+        rangebreaks=[dict(bounds=[11.5, 13], pattern="hour")] if market == "CN" else [],
+        showspikes=True,
+        spikemode="across",
+        spikesnap="cursor",
+        spikedash="dot",
+        spikecolor="#64748b",
+    )
+    fig.update_yaxes(title_text="指数点位", range=price_range)
     return _apply_dark_theme(fig)
 
 

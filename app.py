@@ -1,21 +1,10 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import os
 import importlib
-import html
-from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
 
 # 导入自定义模块
-from data_fetcher import (
-    DataFetchError,
-    fetch_a_share_financial_reports,
-    fetch_a_share_intraday,
-    fetch_a_share_valuation,
-    fetch_stock_data,
-    fetch_us_market_cap,
-)
+from data_fetcher import DataFetchError
 import a_share_universe
 from analysis import (
     calculate_bbi,
@@ -32,6 +21,22 @@ from market_snapshot import (
 )
 from news_fetcher import fetch_recent_financial_news
 from visualization import plot_candlestick, plot_intraday, plot_rsi, plot_macd
+from config.app_config import VALUATION_CACHE_VERSION, configure_page, get_ths_access_token
+from pages.market_overviews import (
+    render_a_share_rankings as render_a_share_rankings_page,
+    render_news_page as render_news_page_view,
+)
+from components.sidebar import render_sidebar
+from services.market_data import (
+    indicator_warmup_start as service_indicator_warmup_start,
+    is_a_share_trading_session as service_is_a_share_trading_session,
+    load_data as service_load_data,
+    load_financial_reports as service_load_financial_reports,
+    load_intraday as service_load_intraday,
+    load_us_market_cap as service_load_us_market_cap,
+    load_valuation as service_load_valuation,
+    trim_to_display_range as service_trim_to_display_range,
+)
 
 # Streamlit reruns the app in the same process, so refresh the separately
 # maintained stock universe before building sidebar options.
@@ -39,23 +44,8 @@ importlib.reload(a_share_universe)
 A_SHARE_UNIVERSE = a_share_universe.A_SHARE_UNIVERSE
 
 
-def get_ths_access_token():
-    token = os.getenv("THS_ACCESS_TOKEN")
-    if token:
-        return token
-    try:
-        return st.secrets.get("THS_ACCESS_TOKEN")
-    except Exception:
-        return None
-
-
 # ============ 页面配置 ============
-st.set_page_config(
-    page_title="Stock Insight",
-    page_icon="📈",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+configure_page()
 
 # ============ 自定义样式 ============
 st.markdown("""
@@ -591,6 +581,10 @@ def render_ranking_table(snapshot, metric):
     st.caption(f"{title}覆盖 A_SHARE_UNIVERSE 全部 {len(display)} 只股票。")
 
 
+# Bind the extracted implementation before this decorator evaluates at import time.
+is_a_share_trading_session = service_is_a_share_trading_session
+
+
 @st.fragment(run_every="30s" if is_a_share_trading_session() else None)
 def render_a_share_rankings():
     header_col, action_col = st.columns([5, 1])
@@ -738,18 +732,18 @@ with nav_area:
                     label_visibility="collapsed",
                     width="stretch",
                 )
-            a_share_view = "个股分析"
-            if market_label == "A股":
-                with a_share_nav:
-                    st.markdown('<div class="nav-label">A股视图</div>', unsafe_allow_html=True)
-                    a_share_view = st.segmented_control(
-                        "A股视图",
-                        ["个股分析", "股票池排行"],
-                        default="个股分析",
-                        key="a_share_view_navigation",
-                        label_visibility="collapsed",
-                        width="stretch",
-                    )
+            with a_share_nav:
+                view_label = "A股视图" if market_label == "A股" else "美股视图"
+                view_options = ["个股分析", "股票池排行"] if market_label == "A股" else ["个股分析"]
+                st.markdown(f'<div class="nav-label">{view_label}</div>', unsafe_allow_html=True)
+                a_share_view = st.segmented_control(
+                    view_label,
+                    view_options,
+                    default="个股分析",
+                    key="market_view_navigation",
+                    label_visibility="collapsed",
+                    width="stretch",
+                )
 
 # 非行情页面在构建侧栏及请求市场数据前完成路由。
 if page == "指标说明":
@@ -758,154 +752,29 @@ if page == "指标说明":
     st.stop()
 if page == "新闻热点":
     st.markdown("---")
-    render_news_page()
+    render_news_page_view()
     st.stop()
 if market_label == "A股" and a_share_view == "股票池排行":
     st.markdown("---")
-    render_a_share_rankings()
+    render_a_share_rankings_page(A_SHARE_UNIVERSE)
     st.stop()
 
 # ============ 侧边栏控制面板 ============
-st.sidebar.header("行情参数")
-
-# 股票市场与标的选择
 market = "CN" if market_label == "A股" else "US"
 ths_access_token = get_ths_access_token()
-
-if market == "CN":
-    industry = st.sidebar.selectbox("产业链赛道", list(A_SHARE_UNIVERSE.keys()))
-    a_share_options = {
-        f"{name} ({code})": code
-        for name, code in A_SHARE_UNIVERSE[industry]
-    }
-    selected_option = st.sidebar.selectbox("选择股票", list(a_share_options.keys()))
-    ticker = a_share_options[selected_option]
-else:
-    ticker_options = {
-        "Apple (AAPL)": "AAPL",
-        "Microsoft (MSFT)": "MSFT",
-        "Tesla (TSLA)": "TSLA",
-        "Amazon (AMZN)": "AMZN",
-        "Google (GOOGL)": "GOOGL",
-        "Meta (META)": "META",
-        "NVIDIA (NVDA)": "NVDA",
-        "SpaceX (SPCX)": "SPCX",
-        "Broadcom (AVGO)": "AVGO",
-        "SanDisk (SNDK)": "SNDK",
-        "Micron (MU)": "MU",
-        "Berkshire Hathaway (BRK-B)": "BRK-B",
-        "JPMorgan (JPM)": "JPM",
-        "Visa (V)": "V",
-        "Custom Input": "CUSTOM",
-    }
-    selected_option = st.sidebar.selectbox("选择股票", list(ticker_options.keys()))
-    if ticker_options[selected_option] == "CUSTOM":
-        ticker = st.sidebar.text_input("输入股票代码", "AAPL").upper()
-    else:
-        ticker = ticker_options[selected_option]
-
-# 时间范围
-col1, col2 = st.sidebar.columns(2)
-with col1:
-    start_date = st.date_input("开始日期", datetime.now() - timedelta(days=365))
-with col2:
-    end_date = st.date_input("结束日期", datetime.now())
-
-# 技术指标参数
-st.sidebar.markdown("---")
-st.sidebar.subheader("技术指标设置")
-
-ma_period_inputs = st.sidebar.multiselect(
-    "移动平均线周期",
-    options=[5, 10, 20, 30, 50, 60, 120],
-    default=[5, 10, 20],
-    accept_new_options=True,
-    help="可选择预设周期，也可直接输入 1–500 之间的交易日数。",
-)
-ma_periods = []
-for value in ma_period_inputs:
-    try:
-        period = int(value)
-    except (TypeError, ValueError):
-        continue
-    if 1 <= period <= 500 and period not in ma_periods:
-        ma_periods.append(period)
-
-indicator_columns = st.sidebar.columns(2)
-with indicator_columns[0]:
-    show_bbi = st.toggle("BBI 线", value=False, help="多空指标：MA3、MA6、MA12、MA24 的均值")
-with indicator_columns[1]:
-    show_boll = st.toggle("BOLL 线", value=False, help="20 日中轨及上下 2 倍标准差轨道")
-
-rsi_period = st.sidebar.slider("RSI周期", 7, 21, 14)
+controls = render_sidebar(market, A_SHARE_UNIVERSE)
+ticker = controls.ticker
+start_date = controls.start_date
+end_date = controls.end_date
+ma_periods = controls.ma_periods
+show_bbi = controls.show_bbi
+show_boll = controls.show_boll
+rsi_period = controls.rsi_period
 
 
-# ============ 数据获取 ============
-@st.cache_data(ttl=3600, show_spinner=False)  # 缓存1小时
-def load_data(ticker, start, end, market, ths_access_token):
-    """缓存数据获取函数"""
-    return fetch_stock_data(
-        ticker,
-        start,
-        end,
-        market=market,
-        ths_access_token=ths_access_token,
-    )
-
-
-def indicator_warmup_start(
-    display_start,
-    ma_periods,
-    rsi_period,
-    show_bbi,
-    show_boll,
-):
-    """Return an earlier request date so indicators are complete at the left edge."""
-    required_sessions = [35, rsi_period + 1, *ma_periods]
-    if show_bbi:
-        required_sessions.append(24)
-    if show_boll:
-        required_sessions.append(20)
-
-    # Add weekday headroom for exchange holidays and occasional missing sessions.
-    warmup_sessions = max(required_sessions) + 15
-    return (
-        pd.Timestamp(display_start).normalize()
-        - pd.offsets.BDay(warmup_sessions)
-    ).date()
-
-
-def trim_to_display_range(frame, display_start, display_end):
-    """Keep only the user-selected range while preserving provider metadata."""
-    attrs = frame.attrs.copy()
-    start = pd.Timestamp(display_start)
-    end = pd.Timestamp(display_end)
-    trimmed = frame.loc[(frame.index >= start) & (frame.index <= end)].copy()
-    trimmed.attrs.update(attrs)
-    return trimmed
-
-
-VALUATION_CACHE_VERSION = 4
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def load_valuation(ticker, cache_version=VALUATION_CACHE_VERSION):
-    return fetch_a_share_valuation(ticker)
-
-
-@st.cache_data(ttl=300, show_spinner=False)
-def load_us_market_cap(ticker):
-    return fetch_us_market_cap(ticker)
-
-
-@st.cache_data(ttl=21600, show_spinner=False)
-def load_financial_reports(ticker):
-    return fetch_a_share_financial_reports(ticker)
-
-
-@st.cache_data(ttl=25, show_spinner=False)
-def load_intraday(ticker):
-    return fetch_a_share_intraday(ticker)
+# The service implementation is bound before the fragment decorator evaluates
+# its refresh schedule during Streamlit page initialization.
+is_a_share_trading_session = service_is_a_share_trading_session
 
 
 @st.fragment(run_every="30s")
@@ -938,11 +807,32 @@ def render_intraday_panel(selected_ticker):
     source = intraday.attrs.get("source", "同花顺")
     refresh_note = "交易时段每 30 秒自动刷新" if is_a_share_trading_session() else "非交易时段显示最近数据"
     st.caption(f"交易日：{trade_date} · 数据来源：{source} · {refresh_note}")
+    volume_metric_label = st.segmented_control(
+        "副图指标",
+        ["成交量", "成交额"],
+        default="成交量",
+        key=f"intraday-volume-metric:{selected_ticker}",
+    )
     st.plotly_chart(
-        plot_intraday(intraday, market="CN"),
+        plot_intraday(
+            intraday,
+            market="CN",
+            volume_metric="amount" if volume_metric_label == "成交额" else "volume",
+        ),
         width="stretch",
         key=f"intraday-chart:{selected_ticker}",
     )
+
+
+# Cached fetching and date-range rules are implemented in services/market_data.py.
+is_a_share_trading_session = service_is_a_share_trading_session
+load_data = service_load_data
+indicator_warmup_start = service_indicator_warmup_start
+trim_to_display_range = service_trim_to_display_range
+load_valuation = service_load_valuation
+load_us_market_cap = service_load_us_market_cap
+load_financial_reports = service_load_financial_reports
+load_intraday = service_load_intraday
 
 
 loading_message = st.empty()
