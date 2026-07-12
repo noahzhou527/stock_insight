@@ -104,7 +104,7 @@ def _index_card_html(item: dict, market: str) -> str:
 
 
 def _render_breadth(breadth: dict, market: str) -> None:
-    st.markdown('<div class="section-title"><span>MARKET BREADTH</span><h3>市场涨跌家数</h3></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title"><h3>市场涨跌家数</h3></div>', unsafe_allow_html=True)
     if "error" in breadth:
         st.warning(breadth["error"])
         return
@@ -140,7 +140,7 @@ def render_market_overview(market: str) -> None:
     hero_col, action_col = st.columns([5, 1])
     with hero_col:
         st.markdown(
-            f'<div class="overview-hero"><span>MARKET OVERVIEW</span><h1>{market_name}市场概览</h1><p>核心指数、成交额变化与全市场涨跌结构</p></div>',
+            f'<div class="overview-hero"><h1>{market_name}市场概览</h1><p>核心指数、成交额变化与全市场涨跌结构</p></div>',
             unsafe_allow_html=True,
         )
     if action_col.button("刷新数据", key=f"refresh-market-overview:{market}", width="stretch"):
@@ -152,7 +152,7 @@ def render_market_overview(market: str) -> None:
     except Exception as error:
         indices, breadth = [], {"error": f"市场广度暂时不可用：{error}"}
 
-    st.markdown('<div class="section-title"><span>BENCHMARKS</span><h3>核心指数</h3></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title"><h3>核心指数</h3></div>', unsafe_allow_html=True)
     st.markdown(
         f'<div class="index-grid {"market-cn" if market == "CN" else "market-us"}">' + "".join(_index_card_html(item, market) for item in indices) + "</div>",
         unsafe_allow_html=True,
@@ -160,7 +160,7 @@ def render_market_overview(market: str) -> None:
 
     _render_breadth(breadth, market)
     available = [item for item in indices if "error" not in item and item.get("intraday") is not None and not item["intraday"].empty]
-    st.markdown('<div class="section-title"><span>INTRADAY</span><h3>指数分时</h3></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-title"><h3>指数分时</h3></div>', unsafe_allow_html=True)
     if not available:
         st.info("当前没有可展示的指数分时数据。")
         return
@@ -200,10 +200,10 @@ def render_market_overview_page() -> None:
         [data-testid="stMainBlockContainer"] { max-width: 1440px; padding-top: 3rem; padding-bottom: 5rem; }
         .main-header { color: var(--ink); font-size: 2rem; font-weight: 760; letter-spacing: -.035em; margin: 0 0 1.35rem; }
         .overview-hero span, .section-title span { color: var(--cyan); font-size:.7rem; font-weight:800; letter-spacing:.14em; }
-        .overview-hero h1 { color:var(--ink); font-size:2rem; letter-spacing:-.035em; margin:.18rem 0 .15rem; }
+        .overview-hero h1 { color:var(--ink); font-size:2rem; letter-spacing:-.035em; margin:0 0 .15rem; }
         .overview-hero p { color:var(--muted); margin:0; font-size:.88rem; }
         .section-title { margin:2rem 0 .85rem; }
-        .section-title h3 { color:var(--ink); font-size:1.28rem; margin:.12rem 0 0; letter-spacing:-.02em; }
+        .section-title h3 { color:var(--ink); font-size:1.28rem; margin:0; letter-spacing:-.02em; }
         .index-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1rem; }
         .index-card { position:relative; min-height:15.4rem; padding:1.25rem; overflow:hidden; border:1px solid var(--line); border-radius:1rem; background:linear-gradient(145deg,rgba(17,29,48,.97),rgba(10,18,31,.98)); box-shadow:0 16px 40px rgba(0,0,0,.18); }
         .index-card::before { content:""; position:absolute; inset:0 auto auto 0; width:100%; height:2px; background:var(--accent,#64748b); }

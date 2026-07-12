@@ -80,9 +80,9 @@ st.markdown("""
         border-bottom: 1px solid rgba(28, 41, 59, 0.55);
     }
     [data-testid="stMainBlockContainer"] {
-        max-width: 1380px;
+        max-width: 1440px;
         /* Leave clear space below Streamlit's fixed Deploy toolbar. */
-        padding-top: 4.25rem;
+        padding-top: 3.1rem;
         padding-bottom: 4rem;
     }
     [data-testid="stSidebar"] {
@@ -102,7 +102,7 @@ st.markdown("""
         color: #a9b7ca;
     }
     .main-header {
-        font-size: clamp(2rem, 4vw, 2.9rem);
+        font-size: clamp(2rem, 3.6vw, 2.7rem);
         font-weight: 750;
         line-height: 1.05;
         letter-spacing: -0.04em;
@@ -110,7 +110,7 @@ st.markdown("""
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         text-align: center;
-        margin: 0 0 1.35rem;
+        margin: 0 0 0.8rem;
         filter: drop-shadow(0 0 24px rgba(34, 211, 238, 0.12));
     }
     /* MathJax fractions extend above their baseline; prevent clipping in expanders. */
@@ -165,6 +165,9 @@ st.markdown("""
         border-radius: 1rem !important;
         box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22);
     }
+    [data-testid="stVerticalBlockBorderWrapper"]:has(div[data-testid="stSegmentedControl"]) {
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+    }
     div[data-testid="stSegmentedControl"] [data-baseweb="button-group"] {
         width: 100%;
         padding: 0.24rem;
@@ -214,8 +217,8 @@ st.markdown("""
         text-align: center;
     }
     [data-testid="stMetric"] {
-        min-height: 7rem;
-        padding: 1.05rem 1.15rem;
+        min-height: 6.35rem;
+        padding: 0.85rem 1rem;
         border: 1px solid var(--line);
         border-radius: 0.9rem;
         background: linear-gradient(145deg, rgba(17, 27, 44, 0.98), rgba(12, 20, 34, 0.98));
@@ -229,10 +232,12 @@ st.markdown("""
     [data-testid="stMetricLabel"] {
         color: var(--muted);
         font-weight: 600;
+        font-size: 0.86rem;
     }
     [data-testid="stMetricValue"] {
         color: var(--ink);
         letter-spacing: -0.035em;
+        line-height: 1.12;
     }
     [data-testid="stMetric"]:has([data-testid="stMetricDelta"]) > div {
         display: flex;
@@ -306,6 +311,13 @@ st.markdown("""
         background-color: #0b1320 !important;
         border-color: var(--line-strong) !important;
         color: var(--ink) !important;
+    }
+    [data-baseweb="select"] > div:focus-within,
+    [data-baseweb="input"] > div:focus-within,
+    [data-testid="stDateInput"] input:focus,
+    [data-testid="stNumberInput"] input:focus {
+        border-color: rgba(34, 211, 238, 0.72) !important;
+        box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.10) !important;
     }
     [data-baseweb="popover"],
     [data-baseweb="menu"],
@@ -441,9 +453,10 @@ st.markdown("""
         padding: 0.2rem 0.5rem 0;
     }
     [data-testid="stAlert"] {
-        background: rgba(17, 27, 44, 0.92);
         border: 1px solid var(--line-strong);
         color: #cbd7e6;
+        border-radius: 0.8rem;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
     }
     [data-testid="stDownloadButton"] button {
         background: linear-gradient(110deg, #0891b2, #2563eb);
@@ -452,8 +465,8 @@ st.markdown("""
     }
     a { color: var(--brand-strong); }
     .nav-context {
-        margin-top: 0.85rem;
-        padding-top: 0.85rem;
+        margin-top: 0.65rem;
+        padding-top: 0.65rem;
         border-top: 1px solid rgba(38, 56, 79, 0.72);
     }
     .ranking-header,
@@ -493,11 +506,11 @@ st.markdown("""
     }
     @media (max-width: 900px) {
         [data-testid="stMainBlockContainer"] {
-            padding-top: 3.25rem;
+            padding-top: 2.5rem;
         }
         .nav-context {
-            margin-top: 0.65rem;
-            padding-top: 0.65rem;
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
         }
         .pe-formula-grid {
             grid-template-columns: 1fr;
@@ -706,7 +719,7 @@ def render_news_page():
 st.markdown('<div class="main-header">Stock Insight</div>', unsafe_allow_html=True)
 
 # ============ 顶部导航 ============
-nav_spacer_left, nav_area, nav_spacer_right = st.columns([1, 5, 1])
+nav_spacer_left, nav_area, nav_spacer_right = st.columns([0.35, 6.3, 0.35])
 market_label = None
 a_share_view = None
 with nav_area:
