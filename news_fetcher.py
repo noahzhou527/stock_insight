@@ -44,11 +44,13 @@ DOUYIN_BILLBOARD_URL = (
 DOUYIN_BILLBOARD_DATA_URL = (
     "https://www.iesdouyin.com/web/api/v2/hotsearch/billboard/word/"
 )
+EASTMONEY_CONCEPT_BOARD_URL = "https://push2.eastmoney.com/api/qt/clist/get"
 
 CACHE_DIR = Path(__file__).resolve().parent / "data" / "cache"
 NEWS_HISTORY_PATH = CACHE_DIR / "news_history.json"
 CACHE_TTL = timedelta(minutes=10)
 HISTORY_RETENTION = timedelta(hours=72)
+MARKET_THEME_LIMIT = 20
 
 SOURCE_QUOTAS = {"Yahoo": 3, "同花顺": 4, "抖音": 3}
 SOURCE_ORDER = tuple(SOURCE_QUOTAS)
@@ -65,9 +67,11 @@ _HTTP_HEADERS = {
     ),
 }
 
-# Douyin is a general-interest list.  These terms intentionally include both
-# instruments/macroeconomics and widely followed listed-company topics.
-_FINANCE_KEYWORDS = (
+# Douyin is a general-interest list.  Keep this list limited to terms that
+# identify financial-market news by themselves.  Broad words such as
+# "商业", "企业", and a company name are deliberately excluded: otherwise
+# ordinary entertainment and product trends leak into the finance feed.
+_DIRECT_FINANCE_KEYWORDS = (
     "a股",
     "股市",
     "股票",
@@ -105,19 +109,14 @@ _FINANCE_KEYWORDS = (
     "金融",
     "银行",
     "保险",
-    "黄金",
-    "白银",
-    "原油",
     "油价",
     "比特币",
     "加密货币",
     "关税",
     "贸易",
     "财政",
-    "消费",
     "楼市",
     "房价",
-    "地产",
     "市值",
     "ipo",
     "上市",
@@ -130,26 +129,15 @@ _FINANCE_KEYWORDS = (
     "营收",
     "利润",
     "融资",
-    "投资",
-    "企业",
-    "商业",
-    "就业",
-    "收入",
-    "税收",
-    "碳达峰",
-    "小米",
-    "腾讯",
-    "阿里",
-    "京东",
-    "茅台",
-    "比亚迪",
-    "宁德时代",
-    "英伟达",
-    "特斯拉",
-    "苹果公司",
-    "华为",
-    "雷军",
-    "马斯克",
+)
+
+# Commodity names are meaningful finance signals only when the title also
+# describes their price, market, or trading.  For example, this keeps
+# "现货黄金价格上涨" but rejects "致敬比利时黄金一代".
+_COMMODITY_FINANCE_PATTERNS = (
+    r"黄金(?:价格|金价|期货|现货|市场|投资|交易|行情|大涨|下跌|上涨|下跌)",
+    r"白银(?:价格|银价|期货|现货|市场|投资|交易|行情|大涨|下跌|上涨|下跌)",
+    r"原油(?:价格|期货|现货|市场|投资|交易|行情|大涨|下跌|上涨|下跌)",
 )
 
 
@@ -218,11 +206,14 @@ def fetch_recent_financial_news(
     with _HISTORY_LOCK:
         cache = _load_history_document()
         cached_items = _items_from_document(cache)
+        cached_market_themes = _market_themes_from_document(cache)
         last_attempt = _parse_iso(cache.get("last_attempt_at"))
         if last_attempt is not None:
             age = now - _aware(last_attempt)
-            if timedelta(0) <= age < CACHE_TTL:
-                selected = _select_for_display(cached_items, requested_hours, now)
+            if timedelta(0) <= age < CACHE_TTL and cached_market_themes:
+                selected = _select_for_display(
+                    cached_items, requested_hours, now, cached_market_themes
+                )
                 cached_at = last_attempt.astimezone(SHANGHAI_TZ).strftime("%H:%M")
                 persisted = cache.get("source_status") or {}
                 statuses: dict[str, str] = {}
@@ -243,15 +234,26 @@ def fetch_recent_financial_news(
     live_by_source: dict[str, list[NewsItem]] = {source: [] for source in SOURCE_ORDER}
     fetch_notes: dict[str, str] = {}
     errors: dict[str, str] = {}
+    market_themes = cached_market_themes
     retention_cutoff = now - HISTORY_RETENTION
 
     _clear_broken_local_proxy()
     session = requests.Session(impersonate="chrome", trust_env=False)
     try:
+        try:
+            market_themes = _fetch_market_theme_keywords(session)
+        except Exception:
+            # Keep the most recently collected themes as a graceful fallback.
+            # Direct finance terms remain usable even if this supplemental
+            # market snapshot is temporarily unavailable.
+            pass
         fetchers = {
             "Yahoo": lambda: (_fetch_yahoo(session, now, retention_cutoff), "RSS"),
             "同花顺": lambda: _fetch_tonghuashun(session, now, retention_cutoff),
-            "抖音": lambda: (_fetch_douyin(session, now), "公开热榜"),
+            "抖音": lambda: (
+                _fetch_douyin(session, now, market_themes),
+                f"公开热榜 · 市场主题 {len(market_themes)} 个",
+            ),
         }
         for source in SOURCE_ORDER:
             try:
@@ -271,8 +273,8 @@ def fetch_recent_financial_news(
     with _HISTORY_LOCK:
         latest = _load_history_document()
         history = _items_from_document(latest)
-        merged = _merge_with_history(history, live_by_source, now)
-        selected = _select_for_display(merged, requested_hours, now)
+        merged = _merge_with_history(history, live_by_source, now, market_themes)
+        selected = _select_for_display(merged, requested_hours, now, market_themes)
 
         statuses: dict[str, str] = {}
         for source, quota in SOURCE_QUOTAS.items():
@@ -297,6 +299,7 @@ def fetch_recent_financial_news(
                 "updated_at": now.isoformat(),
                 "last_attempt_at": now.isoformat(),
                 "source_status": statuses,
+                "market_theme_keywords": list(market_themes),
                 "items": [item.to_record() for item in merged],
             }
         )
@@ -472,7 +475,53 @@ def _parse_ths_datetime(
     return None
 
 
-def _fetch_douyin(session: requests.Session, observed_at: datetime) -> list[NewsItem]:
+def _fetch_market_theme_keywords(session: requests.Session) -> tuple[str, ...]:
+    """Return the leading A-share concept names from Eastmoney's live board list."""
+    response = session.get(
+        EASTMONEY_CONCEPT_BOARD_URL,
+        params={
+            "pn": 1,
+            "pz": MARKET_THEME_LIMIT,
+            "po": 1,
+            "np": 1,
+            "fltt": 2,
+            "invt": 2,
+            "fid": "f3",
+            "fs": "m:90+t:3",
+            "fields": "f12,f14,f3",
+        },
+        headers={**_HTTP_HEADERS, "Referer": "https://quote.eastmoney.com/"},
+        timeout=20,
+    )
+    response.raise_for_status()
+    return _market_theme_keywords_from_payload(response.json())
+
+
+def _market_theme_keywords_from_payload(payload: dict[str, Any]) -> tuple[str, ...]:
+    data = payload.get("data") if isinstance(payload, dict) else None
+    rows = data.get("diff") if isinstance(data, dict) else None
+    if isinstance(rows, dict):
+        rows = list(rows.values())
+    if not isinstance(rows, list):
+        raise ValueError("概念板块响应缺少 diff")
+
+    result: list[str] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        name = _clean_title(row.get("f14", ""))
+        if name and name not in result:
+            result.append(name)
+    if not result:
+        raise ValueError("概念板块响应没有主题名称")
+    return tuple(result[:MARKET_THEME_LIMIT])
+
+
+def _fetch_douyin(
+    session: requests.Session,
+    observed_at: datetime,
+    market_themes: Iterable[str] = (),
+) -> list[NewsItem]:
     api_error: Exception | None = None
     try:
         response = _get(
@@ -481,14 +530,16 @@ def _fetch_douyin(session: requests.Session, observed_at: datetime) -> list[News
             referer=DOUYIN_BILLBOARD_URL,
         )
         payload = response.json()
-        return _parse_douyin_payload(payload, observed_at)
+        return _parse_douyin_payload(payload, observed_at, market_themes)
     except Exception as error:
         api_error = error
 
     # Some deployments expose the rendered list directly in the public HTML.
     try:
         response = _get(session, DOUYIN_BILLBOARD_URL)
-        items = _parse_douyin_html(_decode_response(response), observed_at)
+        items = _parse_douyin_html(
+            _decode_response(response), observed_at, market_themes
+        )
         if not items:
             raise ValueError("公开页面中没有可解析的财经热点")
         return items
@@ -499,7 +550,9 @@ def _fetch_douyin(session: requests.Session, observed_at: datetime) -> list[News
 
 
 def _parse_douyin_payload(
-    payload: dict[str, Any] | str, observed_at: datetime
+    payload: dict[str, Any] | str,
+    observed_at: datetime,
+    market_themes: Iterable[str] = (),
 ) -> list[NewsItem]:
     if isinstance(payload, str):
         payload = json.loads(payload)
@@ -524,7 +577,7 @@ def _parse_douyin_payload(
             )
         else:
             continue
-        if not title or not _is_financial_title(title):
+        if not title or not _is_financial_title(title, market_themes):
             continue
         result.append(
             NewsItem(
@@ -538,13 +591,17 @@ def _parse_douyin_payload(
     return _deduplicate(result)
 
 
-def _parse_douyin_html(html: str, observed_at: datetime) -> list[NewsItem]:
+def _parse_douyin_html(
+    html: str, observed_at: datetime, market_themes: Iterable[str] = ()
+) -> list[NewsItem]:
     # First handle pages that embed the public endpoint's JSON structure.
     decoder = json.JSONDecoder()
     for match in re.finditer(r'["\']word_list["\']\s*:\s*', html):
         try:
             rows, _ = decoder.raw_decode(html[match.end() :])
-            return _parse_douyin_payload({"word_list": rows}, observed_at)
+            return _parse_douyin_payload(
+                {"word_list": rows}, observed_at, market_themes
+            )
         except (json.JSONDecodeError, ValueError):
             continue
 
@@ -552,7 +609,7 @@ def _parse_douyin_html(html: str, observed_at: datetime) -> list[NewsItem]:
     candidates: list[tuple[str, str]] = []
     for anchor in soup.select("a[href]"):
         title = _clean_title(anchor.get("title") or anchor.get_text(" ", strip=True))
-        if _is_financial_title(title):
+        if _is_financial_title(title, market_themes):
             candidates.append((title, urljoin(DOUYIN_BILLBOARD_URL, anchor["href"])))
 
     # Text-only server-rendered variants often expose rank/title/heat on three
@@ -561,7 +618,7 @@ def _parse_douyin_html(html: str, observed_at: datetime) -> list[NewsItem]:
     for index, line in enumerate(lines[:-1]):
         if re.fullmatch(r"\d{1,3}[.、]?", line):
             title = _clean_title(lines[index + 1])
-            if _is_financial_title(title):
+            if _is_financial_title(title, market_themes):
                 candidates.append(
                     (title, f"https://www.douyin.com/search/{quote(title, safe='')}")
                 )
@@ -583,12 +640,15 @@ def _merge_with_history(
     history: Iterable[NewsItem],
     live_by_source: dict[str, list[NewsItem]],
     now: datetime,
+    market_themes: Iterable[str] = (),
 ) -> list[NewsItem]:
     cutoff = now - HISTORY_RETENTION
     merged: dict[tuple[str, str], NewsItem] = {}
 
     for item in _recent_items(history, cutoff):
-        if item.source in SOURCE_QUOTAS:
+        if item.source in SOURCE_QUOTAS and _is_displayable_news_item(
+            item, market_themes
+        ):
             merged[(item.source, _title_key(item.title))] = item
 
     for source in SOURCE_ORDER:
@@ -617,7 +677,10 @@ def _merge_with_history(
 
 
 def _select_for_display(
-    items: Iterable[NewsItem], hours: float, now: datetime
+    items: Iterable[NewsItem],
+    hours: float,
+    now: datetime,
+    market_themes: Iterable[str] = (),
 ) -> list[NewsItem]:
     cutoff = now - timedelta(hours=hours)
     per_source: list[NewsItem] = []
@@ -625,7 +688,11 @@ def _select_for_display(
         source_items = _deduplicate(
             item
             for item in items
-            if item.source == source and item.effective_time >= cutoff
+            if (
+                item.source == source
+                and item.effective_time >= cutoff
+                and _is_displayable_news_item(item, market_themes)
+            )
         )
         source_items.sort(key=lambda item: item.effective_time, reverse=True)
         per_source.extend(source_items[:quota])
@@ -672,6 +739,17 @@ def _items_from_document(document: dict[str, Any]) -> list[NewsItem]:
         if item.source in SOURCE_QUOTAS and item.title and item.url:
             result.append(item)
     return result
+
+
+def _market_themes_from_document(document: dict[str, Any]) -> tuple[str, ...]:
+    values = document.get("market_theme_keywords")
+    if not isinstance(values, list):
+        return ()
+    return tuple(
+        value
+        for value in (_clean_title(raw) for raw in values)
+        if value
+    )[:MARKET_THEME_LIMIT]
 
 
 def _load_history_document() -> dict[str, Any]:
@@ -751,9 +829,27 @@ def _clear_broken_local_proxy() -> None:
             os.environ.pop(name, None)
 
 
-def _is_financial_title(title: str) -> bool:
+def _is_financial_title(title: str, market_themes: Iterable[str] = ()) -> bool:
     normalized = unicodedata.normalize("NFKC", title).casefold()
-    return bool(normalized) and any(word in normalized for word in _FINANCE_KEYWORDS)
+    return bool(normalized) and (
+        any(word in normalized for word in _DIRECT_FINANCE_KEYWORDS)
+        or any(re.search(pattern, normalized) for pattern in _COMMODITY_FINANCE_PATTERNS)
+        or any(
+            theme in normalized
+            for theme in (
+                unicodedata.normalize("NFKC", value).casefold()
+                for value in market_themes
+            )
+            if theme
+        )
+    )
+
+
+def _is_displayable_news_item(
+    item: NewsItem, market_themes: Iterable[str] = ()
+) -> bool:
+    """Recheck cached Douyin rows as well as newly fetched rows."""
+    return item.source != "抖音" or _is_financial_title(item.title, market_themes)
 
 
 def _clean_title(value: Any) -> str:
