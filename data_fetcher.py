@@ -726,7 +726,7 @@ def fetch_a_share_valuation(ticker: str) -> dict:
 
 
 def fetch_us_market_cap(ticker: str) -> float | None:
-    """Fetch the latest US equity market capitalization from Yahoo Finance."""
+    """Fetch the latest Yahoo Finance market capitalization for a non-A-share ticker."""
     try:
         response = _create_yahoo_session().get(
             f"https://finance.yahoo.com/quote/{ticker}/",
@@ -743,7 +743,7 @@ def fetch_us_market_cap(ticker: str) -> float | None:
             return None
         label = re.sub(r"<[^>]+>", "", match.group(1))
         label = label.replace(",", "").strip().upper()
-        value_match = re.search(r"(\d+(?:\.\d+)?)\s*([KMBT])?", label)
+        value_match = re.search(r"(\d+(?:\.\d+)?)\s*([KMBTQ])?", label)
         if not value_match:
             return None
         multiplier = {
@@ -751,6 +751,7 @@ def fetch_us_market_cap(ticker: str) -> float | None:
             "M": 1e6,
             "B": 1e9,
             "T": 1e12,
+            "Q": 1e15,
         }.get(value_match.group(2), 1.0)
         number = float(value_match.group(1)) * multiplier
     except Exception:

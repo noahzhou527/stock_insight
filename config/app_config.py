@@ -24,6 +24,14 @@ US_TICKER_OPTIONS = {
     "Custom Input": "CUSTOM",
 }
 
+KR_TICKER_OPTIONS = {
+    "三星电子 (005930.KS)": "005930.KS",
+    "SK 海力士 (000660.KS)": "000660.KS",
+    "SK Square (402340.KS)": "402340.KS",
+    "现代汽车 (005380.KS)": "005380.KS",
+    "三星电机 (009150.KS)": "009150.KS",
+}
+
 CN_INDEX_CONFIG = (
     {"name": "上证指数", "symbol": "1A0001", "display_code": "000001"},
     {"name": "深证成指", "symbol": "399001", "display_code": "399001"},
@@ -37,6 +45,10 @@ US_INDEX_CONFIG = (
     {"name": "纳斯达克综合", "symbol": "^IXIC"},
     {"name": "纳斯达克100", "symbol": "^NDX"},
     {"name": "标普500", "symbol": "^GSPC"},
+)
+
+KR_INDEX_CONFIG = (
+    {"name": "韩国综合指数", "symbol": "^KS11", "display_code": "KOSPI"},
 )
 
 

@@ -9,7 +9,7 @@ import yfinance as yf
 from curl_cffi import requests
 from yfinance.screener.query import EquityQuery
 
-from config.app_config import CN_INDEX_CONFIG, US_INDEX_CONFIG
+from config.app_config import CN_INDEX_CONFIG, KR_INDEX_CONFIG, US_INDEX_CONFIG
 from data_fetcher import DataFetchError, _clear_broken_local_proxy, _create_yahoo_session, _parse_jsonp
 
 
@@ -206,7 +206,12 @@ def fetch_us_index(index_config: dict) -> dict:
 
 
 def fetch_market_indices(market: str) -> list[dict]:
-    configs = CN_INDEX_CONFIG if market == "CN" else US_INDEX_CONFIG
+    configs_by_market = {
+        "CN": CN_INDEX_CONFIG,
+        "US": US_INDEX_CONFIG,
+        "KR": KR_INDEX_CONFIG,
+    }
+    configs = configs_by_market[market]
     fetcher = fetch_cn_index if market == "CN" else fetch_us_index
     results = []
     for config in configs:

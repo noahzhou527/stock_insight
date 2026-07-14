@@ -739,14 +739,14 @@ with nav_area:
                 st.markdown('<div class="nav-label">股票市场</div>', unsafe_allow_html=True)
                 market_label = st.segmented_control(
                     "股票市场",
-                    ["美股", "A股"],
+                    ["美股", "A股", "韩股"],
                     default="A股",
                     key="market_navigation",
                     label_visibility="collapsed",
                     width="stretch",
                 )
             with a_share_nav:
-                view_label = "A股视图" if market_label == "A股" else "美股视图"
+                view_label = {"A股": "A股视图", "美股": "美股视图", "韩股": "韩股视图"}[market_label]
                 view_options = ["个股分析", "股票池排行"] if market_label == "A股" else ["个股分析"]
                 st.markdown(f'<div class="nav-label">{view_label}</div>', unsafe_allow_html=True)
                 a_share_view = st.segmented_control(
@@ -773,7 +773,7 @@ if market_label == "A股" and a_share_view == "股票池排行":
     st.stop()
 
 # ============ 侧边栏控制面板 ============
-market = "CN" if market_label == "A股" else "US"
+market = {"A股": "CN", "美股": "US", "韩股": "KR"}[market_label]
 ths_access_token = get_ths_access_token()
 controls = render_sidebar(market, A_SHARE_UNIVERSE)
 ticker = controls.ticker
@@ -931,7 +931,7 @@ high_52w = df['High'].max()
 low_52w = df['Low'].min()
 volume_avg = df['Volume'].mean()
 volatility = df['Close'].pct_change().std() * np.sqrt(252) * 100
-currency_symbol = "¥" if market == "CN" else "$"
+currency_symbol = "¥" if market == "CN" else "₩" if market == "KR" else "$"
 price_change_sign = "+" if price_change >= 0 else "-"
 price_delta_label = (
     f"{price_change_sign}{currency_symbol}{abs(price_change):.2f} "
@@ -967,6 +967,12 @@ def format_market_cap(value, selected_market):
         if value >= 1e4:
             return f"¥{value / 1e4:.2f}万"
         return f"¥{value:,.0f}"
+    if selected_market == "KR":
+        if value >= 1e12:
+            return f"₩{value / 1e12:.2f}万亿"
+        if value >= 1e8:
+            return f"₩{value / 1e8:.2f}亿"
+        return f"₩{value:,.0f}"
     if value >= 1e12:
         return f"${value / 1e12:.2f}T"
     if value >= 1e9:

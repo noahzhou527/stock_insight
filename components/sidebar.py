@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 import streamlit as st
 
-from config.app_config import US_TICKER_OPTIONS
+from config.app_config import KR_TICKER_OPTIONS, US_TICKER_OPTIONS
 
 
 @dataclass(frozen=True)
@@ -23,12 +23,32 @@ def render_sidebar(market: str, a_share_universe: dict) -> DashboardControls:
     """Render all dashboard inputs and return their values as one object."""
     st.sidebar.header("行情参数")
     if market == "CN":
-        industry = st.sidebar.selectbox("产业链赛道", list(a_share_universe.keys()))
+        pending_ticker = st.session_state.pop("pending_a_share_ticker", None)
+        if pending_ticker:
+            for candidate_industry, stocks in a_share_universe.items():
+                if any(code == pending_ticker for _, code in stocks):
+                    st.session_state["a_share_industry"] = candidate_industry
+                    break
+
+        industry = st.sidebar.selectbox(
+            "产业链赛道", list(a_share_universe.keys()), key="a_share_industry"
+        )
         options = {f"{name} ({code})": code for name, code in a_share_universe[industry]}
-        ticker = options[st.sidebar.selectbox("选择股票", list(options))]
-    else:
+        if pending_ticker in options.values():
+            st.session_state["a_share_ticker"] = next(
+                label for label, code in options.items() if code == pending_ticker
+            )
+        ticker = options[
+            st.sidebar.selectbox("选择股票", list(options), key="a_share_ticker")
+        ]
+    elif market == "US":
         selected = st.sidebar.selectbox("选择股票", list(US_TICKER_OPTIONS))
         ticker = st.sidebar.text_input("输入股票代码", "AAPL").upper() if US_TICKER_OPTIONS[selected] == "CUSTOM" else US_TICKER_OPTIONS[selected]
+    else:
+        st.sidebar.caption("当前仅提供市值前五个股")
+        ticker = KR_TICKER_OPTIONS[
+            st.sidebar.selectbox("选择股票", list(KR_TICKER_OPTIONS), key="kr_ticker")
+        ]
 
     first, second = st.sidebar.columns(2)
     with first:

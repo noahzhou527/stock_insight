@@ -57,6 +57,11 @@ def load_us_market_overview(cache_version=MARKET_OVERVIEW_CACHE_VERSION):
     return indices, breadth
 
 
+@st.cache_data(ttl=600, show_spinner=False)
+def load_kr_market_overview(cache_version=MARKET_OVERVIEW_CACHE_VERSION):
+    return fetch_market_indices("KR")
+
+
 def _format_amount(value: float | None, market: str) -> str:
     if value is None or not pd.notna(value):
         return "暂不可用" if market == "CN" else "指数未提供"
@@ -112,7 +117,7 @@ def _render_breadth(breadth: dict, market: str) -> None:
     up_pct = up / total * 100 if total else 0
     flat_pct = flat / total * 100 if total else 0
     down_pct = down / total * 100 if total else 0
-    market_class = "market-cn" if market == "CN" else "market-us"
+    market_class = "market-cn" if market in {"CN", "KR"} else "market-us"
     st.markdown(
         f"""
         <div class="breadth-panel {market_class}">
@@ -136,29 +141,32 @@ def _render_breadth(breadth: dict, market: str) -> None:
 
 def render_market_overview(market: str) -> None:
     """Render the market-specific index dashboard without blocking partial data."""
-    market_name = "A股" if market == "CN" else "美股"
+    market_name = {"CN": "A股", "US": "美股", "KR": "韩股 KOSPI"}[market]
+    overview_description = "核心指数与指数分时走势" if market == "KR" else "核心指数、成交额变化与全市场涨跌结构"
     hero_col, action_col = st.columns([5, 1])
     with hero_col:
         st.markdown(
-            f'<div class="overview-hero"><h1>{market_name}市场概览</h1><p>核心指数、成交额变化与全市场涨跌结构</p></div>',
+            f'<div class="overview-hero"><h1>{market_name}市场概览</h1><p>{overview_description}</p></div>',
             unsafe_allow_html=True,
         )
     if action_col.button("刷新数据", key=f"refresh-market-overview:{market}", width="stretch"):
-        (load_cn_market_overview if market == "CN" else load_us_market_overview).clear()
-    loader = load_cn_market_overview if market == "CN" else load_us_market_overview
+        (load_cn_market_overview if market == "CN" else load_us_market_overview if market == "US" else load_kr_market_overview).clear()
+    loader = load_cn_market_overview if market == "CN" else load_us_market_overview if market == "US" else load_kr_market_overview
     try:
-        with st.spinner(f"正在更新{market_name}指数与市场广度..."):
-            indices, breadth = loader()
+        with st.spinner(f"正在更新{market_name}指数数据..."):
+            loaded = loader()
+            indices, breadth = loaded if market in {"CN", "US"} else (loaded, None)
     except Exception as error:
-        indices, breadth = [], {"error": f"市场广度暂时不可用：{error}"}
+        indices, breadth = [], None if market == "KR" else {"error": f"市场广度暂时不可用：{error}"}
 
     st.markdown('<div class="section-title"><h3>核心指数</h3></div>', unsafe_allow_html=True)
     st.markdown(
-        f'<div class="index-grid {"market-cn" if market == "CN" else "market-us"}">' + "".join(_index_card_html(item, market) for item in indices) + "</div>",
+        f'<div class="index-grid {"market-cn" if market in {"CN", "KR"} else "market-us"}">' + "".join(_index_card_html(item, market) for item in indices) + "</div>",
         unsafe_allow_html=True,
     )
 
-    _render_breadth(breadth, market)
+    if breadth is not None:
+        _render_breadth(breadth, market)
     available = [item for item in indices if "error" not in item and item.get("intraday") is not None and not item["intraday"].empty]
     st.markdown('<div class="section-title"><h3>指数分时</h3></div>', unsafe_allow_html=True)
     if not available:
@@ -168,7 +176,7 @@ def render_market_overview(market: str) -> None:
     selection = selector_col.selectbox("选择指数", [item["name"] for item in available], key=f"market-overview-index:{market}")
     selected = next(item for item in available if item["name"] == selection)
     intraday = selected["intraday"].copy()
-    if market == "US" and not intraday.empty:
+    if market in {"US", "KR"} and not intraday.empty:
         latest_session = pd.Timestamp(intraday.index[-1]).date()
         intraday = intraday[pd.Index(intraday.index.date) == latest_session].copy()
     if "Price" not in intraday.columns:
@@ -245,38 +253,98 @@ def render_market_overview_page() -> None:
     st.markdown('<div class="main-header">Stock Insight · 市场概览</div>', unsafe_allow_html=True)
     market_label = st.segmented_control(
         "市场",
-        ["A股", "美股"],
+        ["A股", "美股", "韩股 KOSPI"],
         default="A股",
         key="market-overview-page-market",
         width="stretch",
     )
-    render_market_overview("CN" if market_label == "A股" else "US")
+    render_market_overview({"A股": "CN", "美股": "US", "韩股 KOSPI": "KR"}[market_label])
 
 
 if __name__ == "__main__":
     render_market_overview_page()
 
 
+def _toggle_ranking_sort(metric: str, source_column: str) -> None:
+    sort_key = f"a-share-ranking-sort:{metric}"
+    current = st.session_state.get(sort_key)
+    is_same_column = current and current["column"] == source_column
+    st.session_state[sort_key] = {
+        "column": source_column,
+        "ascending": not current["ascending"] if is_same_column else True,
+    }
+
+
 def _render_ranking_table(snapshot, metric):
     title, metric_label, divisor, number_format = RANKING_CONFIG[metric]
     ranked = rank_snapshot(snapshot, metric).copy()
+    sort_key = f"a-share-ranking-sort:{metric}"
+    sort_state = st.session_state.get(sort_key)
+    if sort_state:
+        ranked = ranked.sort_values(
+            by=sort_state["column"],
+            ascending=sort_state["ascending"],
+            kind="mergesort",
+            na_position="last",
+        )
     ranked[metric] = pd.to_numeric(ranked[metric], errors="coerce") / divisor
     display = ranked.reindex(columns=["rank", "name", "ticker", "industry", metric, "quote_time", "stale"]).rename(
         columns={"rank": "排名", "name": "股票", "ticker": "代码", "industry": "赛道", metric: metric_label, "quote_time": "数据时间", "stale": "状态"}
     )
     display["状态"] = display["状态"].map({True: "缓存", False: "实时"}).fillna("实时")
-    st.dataframe(
-        display,
-        width="stretch",
-        height=560,
-        hide_index=True,
-        column_config={
-            "排名": st.column_config.NumberColumn(width="small", format="%d"),
-            metric_label: st.column_config.NumberColumn(format=number_format),
-            "状态": st.column_config.TextColumn(width="small"),
-        },
-        key=f"a-share-ranking:{metric}",
+    column_widths = [0.65, 1.25, 1.15, 1.2, 1.1, 1.65, 0.7]
+    headers = [
+        ("rank", "排名"),
+        ("name", "股票"),
+        ("ticker", "代码"),
+        ("industry", "赛道"),
+        (metric, metric_label),
+        ("quote_time", "数据时间"),
+        ("stale", "状态"),
+    ]
+    st.markdown(
+        """
+        <style>
+        [class*="st-key-a-share-ranking-table-"] { overflow-x: auto; }
+        [class*="st-key-a-share-ranking-table-"] [data-testid="stHorizontalBlock"] { min-width: 780px; flex-wrap: nowrap; }
+        [class*="st-key-a-share-ranking-table-"] [data-testid="stMarkdownContainer"] p { margin: 0; white-space: nowrap; }
+        [class*="st-key-a-share-ranking-table-"] .stButton > button { min-height: 0; padding: .15rem 0; white-space: nowrap; }
+        </style>
+        """,
+        unsafe_allow_html=True,
     )
+    with st.container(height=560, border=True, key=f"a-share-ranking-table-{metric}"):
+        header_columns = st.columns(column_widths, gap="small")
+        for column, (source_column, label) in zip(header_columns, headers):
+            is_active = sort_state and sort_state["column"] == source_column
+            sort_arrow = " ↑" if is_active and sort_state["ascending"] else " ↓" if is_active else ""
+            column.button(
+                f"{label}{sort_arrow}",
+                key=f"a-share-ranking-sort-button:{metric}:{source_column}",
+                type="tertiary",
+                on_click=_toggle_ranking_sort,
+                args=(metric, source_column),
+            )
+
+        for row in display.itertuples(index=False):
+            rank, name, ticker, industry, metric_value, quote_time, status = row
+            formatted_metric = "—" if pd.isna(metric_value) else number_format % float(metric_value)
+            columns = st.columns(column_widths, gap="small")
+            columns[0].markdown(str(int(rank)) if pd.notna(rank) else "")
+            selected = columns[1].button(
+                str(name),
+                key=f"a-share-ranking-stock:{metric}:{ticker}",
+                type="tertiary",
+            )
+            if selected:
+                st.session_state["pending_a_share_ticker"] = str(ticker)
+                st.session_state["market_view_navigation"] = "个股分析"
+                st.rerun(scope="app")
+            columns[2].markdown(str(ticker))
+            columns[3].markdown(str(industry))
+            columns[4].markdown(formatted_metric)
+            columns[5].markdown(str(quote_time))
+            columns[6].markdown(str(status))
     st.caption(f"{title}覆盖股票池全部 {len(display)} 只股票。")
 
 
