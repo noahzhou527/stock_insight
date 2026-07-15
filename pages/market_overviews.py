@@ -281,22 +281,39 @@ def _render_ranking_table(snapshot, metric):
     sort_key = f"a-share-ranking-sort:{metric}"
     sort_state = st.session_state.get(sort_key)
     if sort_state:
-        ranked = ranked.sort_values(
-            by=sort_state["column"],
-            ascending=sort_state["ascending"],
-            kind="mergesort",
-            na_position="last",
-        )
+        sort_column = sort_state["column"]
+        if metric == "pe_ttm" and sort_column == "pe_ttm":
+            pe_values = pd.to_numeric(ranked["pe_ttm"], errors="coerce")
+            ranked = (
+                ranked.assign(
+                    _invalid_pe=pe_values.isna() | (pe_values <= 0),
+                    _pe_sort_value=pe_values.where(pe_values > 0),
+                )
+                .sort_values(
+                    by=["_invalid_pe", "_pe_sort_value"],
+                    ascending=[True, sort_state["ascending"]],
+                    kind="mergesort",
+                    na_position="last",
+                )
+                .drop(columns=["_invalid_pe", "_pe_sort_value"])
+            )
+        else:
+            ranked = ranked.sort_values(
+                by=sort_column,
+                ascending=sort_state["ascending"],
+                kind="mergesort",
+                na_position="last",
+            )
     ranked[metric] = pd.to_numeric(ranked[metric], errors="coerce") / divisor
-    display = ranked.reindex(columns=["rank", "name", "ticker", "industry", metric, "quote_time", "stale"]).rename(
-        columns={"rank": "排名", "name": "股票", "ticker": "代码", "industry": "赛道", metric: metric_label, "quote_time": "数据时间", "stale": "状态"}
+    display = ranked.reindex(columns=["rank", "name", "price", "industry", metric, "quote_time", "stale"]).rename(
+        columns={"rank": "排名", "name": "股票", "price": "现价", "industry": "赛道", metric: metric_label, "quote_time": "数据时间", "stale": "状态"}
     )
     display["状态"] = display["状态"].map({True: "缓存", False: "实时"}).fillna("实时")
     column_widths = [0.65, 1.25, 1.15, 1.2, 1.1, 1.65, 0.7]
     headers = [
         ("rank", "排名"),
         ("name", "股票"),
-        ("ticker", "代码"),
+        ("price", "现价"),
         ("industry", "赛道"),
         (metric, metric_label),
         ("quote_time", "数据时间"),
@@ -309,6 +326,8 @@ def _render_ranking_table(snapshot, metric):
         [class*="st-key-a-share-ranking-table-"] [data-testid="stHorizontalBlock"] { min-width: 780px; flex-wrap: nowrap; }
         [class*="st-key-a-share-ranking-table-"] [data-testid="stMarkdownContainer"] p { margin: 0; white-space: nowrap; }
         [class*="st-key-a-share-ranking-table-"] .stButton > button { min-height: 0; padding: .15rem 0; white-space: nowrap; }
+        .ranking-price-up { color: #e53935; }
+        .ranking-price-down { color: #1e9d55; }
         </style>
         """,
         unsafe_allow_html=True,
@@ -326,9 +345,17 @@ def _render_ranking_table(snapshot, metric):
                 args=(metric, source_column),
             )
 
-        for row in display.itertuples(index=False):
-            rank, name, ticker, industry, metric_value, quote_time, status = row
+        for row_index, row in enumerate(display.itertuples(index=False)):
+            rank, name, price, industry, metric_value, quote_time, status = row
+            ticker = str(ranked.iloc[row_index]["ticker"])
             formatted_metric = "—" if pd.isna(metric_value) else number_format % float(metric_value)
+            formatted_price = "—" if pd.isna(price) else f"¥{float(price):.2f}"
+            change_pct = pd.to_numeric(ranked.iloc[row_index].get("change_pct"), errors="coerce")
+            price_class = (
+                "ranking-price-up"
+                if change_pct >= 0
+                else "ranking-price-down" if change_pct < 0 else ""
+            )
             columns = st.columns(column_widths, gap="small")
             columns[0].markdown(str(int(rank)) if pd.notna(rank) else "")
             selected = columns[1].button(
@@ -340,7 +367,10 @@ def _render_ranking_table(snapshot, metric):
                 st.session_state["pending_a_share_ticker"] = str(ticker)
                 st.session_state["market_view_navigation"] = "个股分析"
                 st.rerun(scope="app")
-            columns[2].markdown(str(ticker))
+            columns[2].markdown(
+                f'<span class="{price_class}">{formatted_price}</span>',
+                unsafe_allow_html=True,
+            )
             columns[3].markdown(str(industry))
             columns[4].markdown(formatted_metric)
             columns[5].markdown(str(quote_time))

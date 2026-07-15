@@ -566,12 +566,12 @@ def render_ranking_table(snapshot, metric):
     title, metric_label, divisor, number_format = RANKING_CONFIG[metric]
     ranked = rank_snapshot(snapshot, metric).copy()
     ranked[metric] = pd.to_numeric(ranked[metric], errors="coerce") / divisor
-    columns = ["rank", "name", "ticker", "industry", metric, "quote_time", "stale"]
+    columns = ["rank", "name", "price", "industry", metric, "quote_time", "stale"]
     display = ranked.reindex(columns=columns).rename(
         columns={
             "rank": "排名",
             "name": "股票",
-            "ticker": "代码",
+            "price": "现价",
             "industry": "赛道",
             metric: metric_label,
             "quote_time": "数据时间",
@@ -586,6 +586,7 @@ def render_ranking_table(snapshot, metric):
         hide_index=True,
         column_config={
             "排名": st.column_config.NumberColumn(width="small", format="%d"),
+            "现价": st.column_config.NumberColumn(format="%.2f"),
             metric_label: st.column_config.NumberColumn(format=number_format),
             "状态": st.column_config.TextColumn(width="small"),
         },
@@ -930,6 +931,12 @@ price_change_pct = (price_change / prev_price) * 100
 high_52w = df['High'].max()
 low_52w = df['Low'].min()
 volume_avg = df['Volume'].mean()
+daily_amount = (
+    pd.to_numeric(df["Amount"], errors="coerce")
+    if "Amount" in df.columns
+    else pd.Series(np.nan, index=df.index)
+)
+max_daily_amount = daily_amount.max()
 volatility = df['Close'].pct_change().std() * np.sqrt(252) * 100
 currency_symbol = "¥" if market == "CN" else "₩" if market == "KR" else "$"
 price_change_sign = "+" if price_change >= 0 else "-"
@@ -1000,12 +1007,14 @@ if market == "CN":
     with price_columns[2]:
         st.metric("52周最低", f"{currency_symbol}{low_52w:.2f}")
 
-    secondary_columns = st.columns(3)
+    secondary_columns = st.columns(4)
     with secondary_columns[0]:
         st.metric("平均成交量", f"{volume_avg / 1e6:.1f}M")
     with secondary_columns[1]:
-        st.metric("年化波动率", f"{volatility:.1f}%")
+        st.metric("区间单日最大成交额", format_market_cap(max_daily_amount, market))
     with secondary_columns[2]:
+        st.metric("年化波动率", f"{volatility:.1f}%")
+    with secondary_columns[3]:
         st.metric("总市值", format_market_cap(market_cap, market))
 
     st.markdown("#### 估值概览")
@@ -1039,12 +1048,14 @@ else:
     with primary_metric_columns[2]:
         st.metric("52周最低", f"{currency_symbol}{low_52w:.2f}")
 
-    secondary_metric_columns = st.columns(3)
+    secondary_metric_columns = st.columns(4)
     with secondary_metric_columns[0]:
         st.metric("平均成交量", f"{volume_avg / 1e6:.1f}M")
     with secondary_metric_columns[1]:
-        st.metric("年化波动率", f"{volatility:.1f}%")
+        st.metric("区间单日最大成交额", format_market_cap(max_daily_amount, market))
     with secondary_metric_columns[2]:
+        st.metric("年化波动率", f"{volatility:.1f}%")
+    with secondary_metric_columns[3]:
         st.metric("总市值", format_market_cap(market_cap, market))
 
 # ============ 主内容区域 ============
