@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import time
 from zoneinfo import ZoneInfo
 
 import pandas as pd
@@ -18,6 +19,9 @@ EASTMONEY_KLINE_URL = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
 EASTMONEY_TRENDS_URL = "https://push2.eastmoney.com/api/qt/stock/trends2/get"
 CHINA_TZ = ZoneInfo("Asia/Shanghai")
 US_TZ = ZoneInfo("America/New_York")
+CN_BREADTH_PAGE_SIZE = 1_000
+CN_BREADTH_RETRIES = 3
+_LAST_CN_MARKET_BREADTH: dict | None = None
 
 
 def is_us_trading_session() -> bool:
@@ -222,30 +226,101 @@ def fetch_market_indices(market: str) -> list[dict]:
     return results
 
 
+def _fetch_cn_breadth_page(session, fs: str, page: int) -> tuple[list[dict], int]:
+    """Fetch one breadth page, retrying brief Eastmoney connection failures."""
+    last_error = None
+    for attempt in range(CN_BREADTH_RETRIES):
+        try:
+            response = session.get(
+                EASTMONEY_CLIST_URL,
+                params={"pn": page, "pz": CN_BREADTH_PAGE_SIZE, "po": 1, "np": 1, "fltt": 2, "invt": 2, "fid": "f3", "fs": fs, "fields": "f12,f3"},
+                headers={"Referer": "https://quote.eastmoney.com/"},
+                timeout=12,
+            )
+            response.raise_for_status()
+            data = response.json().get("data") or {}
+            if not isinstance(data, dict):
+                raise ValueError("东方财富返回的市场广度数据格式异常")
+            rows = data.get("diff") or []
+            if isinstance(rows, dict):
+                rows = list(rows.values())
+            if not isinstance(rows, list):
+                raise ValueError("东方财富返回的市场广度列表格式异常")
+            total = int(data.get("total", 0))
+            if total and not rows:
+                raise ValueError("东方财富返回了空的市场广度分页")
+            return rows, total
+        except Exception as error:
+            last_error = error
+            if attempt < CN_BREADTH_RETRIES - 1:
+                time.sleep(0.4 * (attempt + 1))
+    raise last_error
+
+
+def _cached_a_share_universe_breadth() -> dict | None:
+    """Return the locally cached stock-pool breadth without making a request."""
+    from market_snapshot import _load_snapshot_cache
+
+    snapshot = _load_snapshot_cache()
+    if snapshot.empty or "change_pct" not in snapshot:
+        return None
+    changes = pd.to_numeric(snapshot["change_pct"], errors="coerce").dropna()
+    if changes.empty:
+        return None
+    return {
+        "up": int((changes > 0).sum()),
+        "down": int((changes < 0).sum()),
+        "flat": int((changes == 0).sum()),
+        "total": int(len(changes)),
+        "source": "A 股股票池本地快照（非全市场）",
+        "stale": True,
+        "fallback": "watchlist",
+    }
+
+
 def fetch_cn_market_breadth() -> dict:
+    global _LAST_CN_MARKET_BREADTH
+
     _clear_broken_local_proxy()
     session = requests.Session(impersonate="chrome", trust_env=False)
     changes: list[float] = []
     try:
         for fs in ("m:0+t:6,m:0+t:80", "m:1+t:2,m:1+t:23", "m:0+t:81+s:2048"):
             page = 1
-            page_size = 100
             while True:
-                response = session.get(EASTMONEY_CLIST_URL, params={"pn": page, "pz": page_size, "po": 1, "np": 1, "fltt": 2, "invt": 2, "fid": "f3", "fs": fs, "fields": "f12,f3"}, headers={"Referer": "https://quote.eastmoney.com/"}, timeout=20)
-                response.raise_for_status()
-                data = (response.json().get("data") or {})
-                rows = data.get("diff") or []
-                if isinstance(rows, dict):
-                    rows = list(rows.values())
-                changes.extend(float(value) for row in rows if (value := pd.to_numeric(row.get("f3"), errors="coerce")) == value)
-                if page * page_size >= int(data.get("total", 0)) or not rows:
+                rows, total = _fetch_cn_breadth_page(session, fs, page)
+                changes.extend(
+                    float(value)
+                    for row in rows
+                    if (value := pd.to_numeric(row.get("f3"), errors="coerce")) == value
+                )
+                if page * CN_BREADTH_PAGE_SIZE >= total:
                     break
                 page += 1
+        if not changes:
+            raise ValueError("东方财富未返回任何 A 股涨跌幅数据")
     except Exception as error:
+        if _LAST_CN_MARKET_BREADTH is not None:
+            return {
+                **_LAST_CN_MARKET_BREADTH,
+                "source": f"{_LAST_CN_MARKET_BREADTH['source']} · 上次成功快照",
+                "stale": True,
+            }
+        cached_breadth = _cached_a_share_universe_breadth()
+        if cached_breadth is not None:
+            return cached_breadth
         raise DataFetchError("eastmoney_breadth_failed", "东方财富全 A 股涨跌家数暂时不可用。", error) from error
     finally:
         session.close()
-    return {"up": sum(value > 0 for value in changes), "down": sum(value < 0 for value in changes), "flat": sum(value == 0 for value in changes), "total": len(changes), "source": "东方财富全 A 股快照"}
+
+    _LAST_CN_MARKET_BREADTH = {
+        "up": sum(value > 0 for value in changes),
+        "down": sum(value < 0 for value in changes),
+        "flat": sum(value == 0 for value in changes),
+        "total": len(changes),
+        "source": "东方财富全 A 股快照",
+    }
+    return _LAST_CN_MARKET_BREADTH.copy()
 
 
 def _screen_count(query: EquityQuery) -> int:

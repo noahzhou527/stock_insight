@@ -478,6 +478,15 @@ def plot_index_intraday(
     deviation = max((series - previous_close).abs().max() for series in plotted_values)
     price_padding = max(float(deviation) * 1.15, abs(previous_close) * 0.0015)
     price_range = [previous_close - price_padding, previous_close + price_padding]
+    tick_count = 7
+    price_ticks = [
+        price_range[0] + (price_range[1] - price_range[0]) * index / (tick_count - 1)
+        for index in range(tick_count)
+    ]
+    percentage_ticks = [
+        f"{(price / previous_close - 1) * 100:+.2f}%" for price in price_ticks
+    ]
+    price_tick_labels = [f"{price:,.2f}" for price in price_ticks]
     high, low = float(prices.max()), float(prices.min())
     fig = go.Figure()
     fig.add_trace(
@@ -491,6 +500,18 @@ def plot_index_intraday(
             customdata=((prices / previous_close - 1) * 100).round(2).to_numpy(),
             hovertemplate="%{x|%H:%M}<br>点位：%{y:.2f}<br>涨跌幅：%{customdata:+.2f}%<extra></extra>",
         ),
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=frame.index,
+            y=prices,
+            yaxis="y2",
+            mode="lines",
+            line=dict(width=0),
+            opacity=0,
+            hoverinfo="skip",
+            showlegend=False,
+        )
     )
     if average_prices is not None and average_prices.notna().any():
         fig.add_trace(
@@ -507,7 +528,31 @@ def plot_index_intraday(
     fig.add_hline(y=high, line_dash="dash", line_color="#d0d0d0", line_width=1, annotation_text=f"最高 {high:.2f}", annotation_font_color="#e53935", annotation_position="top left")
     fig.add_hline(y=previous_close, line_dash="dash", line_color="#8a94a6", line_width=1.5, annotation_text=f"昨收 {previous_close:.2f} · 0%", annotation_position="top left")
     fig.add_hline(y=low, line_dash="dash", line_color="#d0d0d0", line_width=1, annotation_text=f"最低 {low:.2f}", annotation_font_color="#1e9d55", annotation_position="bottom left")
-    fig.update_layout(title=dict(text=f"{name} 分时", x=0.01), height=430, margin=dict(l=35, r=25, t=75, b=35), hovermode="x unified", legend=dict(orientation="h", y=1.10, x=1, xanchor="right"))
+    fig.update_layout(
+        title=dict(text=f"{name} 分时", x=0.01),
+        height=430,
+        margin=dict(l=35, r=80, t=75, b=35),
+        hovermode="x unified",
+        legend=dict(orientation="h", y=1.10, x=1, xanchor="right"),
+        yaxis2=dict(
+            title="涨跌幅",
+            overlaying="y",
+            side="right",
+            range=price_range,
+            tickmode="array",
+            tickvals=price_ticks,
+            ticktext=percentage_ticks,
+            showgrid=False,
+            zeroline=False,
+        ),
+        yaxis=dict(
+            title="指数点位",
+            range=price_range,
+            tickmode="array",
+            tickvals=price_ticks,
+            ticktext=price_tick_labels,
+        ),
+    )
     fig.update_xaxes(
         tickformat="%H:%M",
         rangebreaks=[dict(bounds=[11.5, 13], pattern="hour")] if market == "CN" else [],
@@ -517,7 +562,6 @@ def plot_index_intraday(
         spikedash="dot",
         spikecolor="#64748b",
     )
-    fig.update_yaxes(title_text="指数点位", range=price_range)
     return _apply_dark_theme(fig)
 
 

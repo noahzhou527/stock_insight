@@ -749,11 +749,15 @@ with nav_area:
             with a_share_nav:
                 view_label = {"A股": "A股视图", "美股": "美股视图", "韩股": "韩股视图"}[market_label]
                 view_options = ["个股分析", "股票池排行"] if market_label == "A股" else ["个股分析"]
+                if (
+                    "market_view_navigation" not in st.session_state
+                    or st.session_state["market_view_navigation"] not in view_options
+                ):
+                    st.session_state["market_view_navigation"] = "个股分析"
                 st.markdown(f'<div class="nav-label">{view_label}</div>', unsafe_allow_html=True)
                 a_share_view = st.segmented_control(
                     view_label,
                     view_options,
-                    default="个股分析",
                     key="market_view_navigation",
                     label_visibility="collapsed",
                     width="stretch",
@@ -791,6 +795,12 @@ rsi_period = controls.rsi_period
 is_a_share_trading_session = service_is_a_share_trading_session
 
 
+def refresh_intraday_data(selected_ticker: str) -> None:
+    """Clear the intraday snapshot so the next app run fetches a fresh quote."""
+    load_intraday.clear()
+    st.session_state.pop(f"intraday:{selected_ticker}", None)
+
+
 @st.fragment(run_every="30s")
 def render_intraday_panel(selected_ticker):
     session_key = f"intraday:{selected_ticker}"
@@ -800,8 +810,8 @@ def render_intraday_panel(selected_ticker):
         width="content",
     )
     if manually_refreshed:
-        load_intraday.clear()
-        st.session_state.pop(session_key, None)
+        refresh_intraday_data(selected_ticker)
+        st.rerun()
 
     should_fetch = is_a_share_trading_session() or session_key not in st.session_state
     if should_fetch:
@@ -1072,7 +1082,19 @@ tab1, tab_intraday, tab2, tab3, tab4, tab5 = st.tabs(
 
 # ============ Tab 1: 价格分析 ============
 with tab1:
-    st.subheader("K线图与成交量")
+    price_chart_heading, refresh_col = st.columns([5, 1])
+    with price_chart_heading:
+        st.subheader("K线图与成交量")
+    with refresh_col:
+        refresh_price_page = st.button(
+            "立即刷新",
+            key=f"refresh-intraday-from-price:{ticker}",
+            width="stretch",
+            disabled=market != "CN",
+        )
+    if refresh_price_page:
+        refresh_intraday_data(ticker)
+        st.rerun()
     volume_metric_label = st.segmented_control(
         "副图指标",
         ["成交量", "成交额"],

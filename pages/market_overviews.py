@@ -113,6 +113,10 @@ def _render_breadth(breadth: dict, market: str) -> None:
     if "error" in breadth:
         st.warning(breadth["error"])
         return
+    if breadth.get("fallback") == "watchlist":
+        st.caption("东方财富全市场快照暂时不可用，以下为本地股票池统计（非全市场）。")
+    elif breadth.get("stale"):
+        st.caption("东方财富最新快照暂时不可用，以下为最近一次成功统计。")
     up, flat, down, total = (int(breadth.get(key, 0)) for key in ("up", "flat", "down", "total"))
     up_pct = up / total * 100 if total else 0
     flat_pct = flat / total * 100 if total else 0
