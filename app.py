@@ -30,6 +30,7 @@ from components.sidebar import render_sidebar
 from services.market_data import (
     indicator_warmup_start as service_indicator_warmup_start,
     is_a_share_trading_session as service_is_a_share_trading_session,
+    is_market_trading_session as service_is_market_trading_session,
     load_data as service_load_data,
     load_financial_reports as service_load_financial_reports,
     load_intraday as service_load_intraday,
@@ -798,25 +799,27 @@ is_a_share_trading_session = service_is_a_share_trading_session
 def refresh_intraday_data(selected_ticker: str) -> None:
     """Clear the intraday snapshot so the next app run fetches a fresh quote."""
     load_intraday.clear()
-    st.session_state.pop(f"intraday:{selected_ticker}", None)
+    for key in list(st.session_state):
+        if key.startswith("intraday:") and key.endswith(f":{selected_ticker}"):
+            st.session_state.pop(key, None)
 
 
 @st.fragment(run_every="30s")
-def render_intraday_panel(selected_ticker):
-    session_key = f"intraday:{selected_ticker}"
+def render_intraday_panel(selected_ticker, selected_market):
+    session_key = f"intraday:{selected_market}:{selected_ticker}"
     manually_refreshed = st.button(
         "立即刷新",
-        key=f"refresh-intraday:{selected_ticker}",
+        key=f"refresh-intraday:{selected_market}:{selected_ticker}",
         width="content",
     )
     if manually_refreshed:
         refresh_intraday_data(selected_ticker)
         st.rerun()
 
-    should_fetch = is_a_share_trading_session() or session_key not in st.session_state
+    should_fetch = is_market_trading_session(selected_market) or session_key not in st.session_state
     if should_fetch:
         try:
-            st.session_state[session_key] = load_intraday(selected_ticker)
+            st.session_state[session_key] = load_intraday(selected_ticker, selected_market)
         except DataFetchError as error:
             if session_key not in st.session_state:
                 st.warning(str(error))
@@ -829,27 +832,28 @@ def render_intraday_panel(selected_ticker):
 
     trade_date = intraday.attrs.get("trade_date", "")
     source = intraday.attrs.get("source", "同花顺")
-    refresh_note = "交易时段每 30 秒自动刷新" if is_a_share_trading_session() else "非交易时段显示最近数据"
+    refresh_note = "交易时段每 30 秒自动刷新" if is_market_trading_session(selected_market) else "非交易时段显示最近数据"
     st.caption(f"交易日：{trade_date} · 数据来源：{source} · {refresh_note}")
     volume_metric_label = st.segmented_control(
         "副图指标",
         ["成交量", "成交额"],
         default="成交量",
-        key=f"intraday-volume-metric:{selected_ticker}",
+        key=f"intraday-volume-metric:{selected_market}:{selected_ticker}",
     )
     st.plotly_chart(
         plot_intraday(
             intraday,
-            market="CN",
+            market=selected_market,
             volume_metric="amount" if volume_metric_label == "成交额" else "volume",
         ),
         width="stretch",
-        key=f"intraday-chart:{selected_ticker}",
+        key=f"intraday-chart:{selected_market}:{selected_ticker}",
     )
 
 
 # Cached fetching and date-range rules are implemented in services/market_data.py.
 is_a_share_trading_session = service_is_a_share_trading_session
+is_market_trading_session = service_is_market_trading_session
 load_data = service_load_data
 indicator_warmup_start = service_indicator_warmup_start
 trim_to_display_range = service_trim_to_display_range
@@ -919,12 +923,12 @@ st.markdown("---")
 latest_price = df['Close'].iloc[-1]
 prev_price = df['Close'].iloc[-2]
 current_price_label = "当前价格"
-if market == "CN":
-    intraday_session_key = f"intraday:{ticker}"
+if market in {"CN", "US", "KR"}:
+    intraday_session_key = f"intraday:{market}:{ticker}"
     intraday_snapshot = st.session_state.get(intraday_session_key)
     if intraday_snapshot is None:
         try:
-            intraday_snapshot = load_intraday(ticker)
+            intraday_snapshot = load_intraday(ticker, market)
             st.session_state[intraday_session_key] = intraday_snapshot
         except DataFetchError:
             intraday_snapshot = None
@@ -1090,7 +1094,6 @@ with tab1:
             "立即刷新",
             key=f"refresh-intraday-from-price:{ticker}",
             width="stretch",
-            disabled=market != "CN",
         )
     if refresh_price_page:
         refresh_intraday_data(ticker)
@@ -1127,10 +1130,7 @@ with tab1:
 
 # ============ 当日分时 ============
 with tab_intraday:
-    if market == "CN":
-        render_intraday_panel(ticker)
-    else:
-        st.info("当日分时图目前用于 A股。")
+    render_intraday_panel(ticker, market)
 
 # ============ Tab 2: 技术指标 ============
 with tab2:

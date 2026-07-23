@@ -9,6 +9,7 @@ import streamlit as st
 from data_fetcher import (
     fetch_a_share_financial_reports,
     fetch_a_share_intraday,
+    fetch_yahoo_intraday,
     fetch_a_share_valuation,
     fetch_stock_data,
     fetch_us_market_cap,
@@ -29,6 +30,23 @@ def is_a_share_trading_session() -> bool:
         <= current
         <= datetime.strptime("15:00", "%H:%M").time()
     )
+
+
+def is_market_trading_session(market: str) -> bool:
+    """Return whether the selected market is in its regular trading session."""
+    market = market.upper()
+    if market == "CN":
+        return is_a_share_trading_session()
+    timezone, start, end = {
+        "US": ("America/New_York", "09:30", "16:00"),
+        "KR": ("Asia/Seoul", "09:00", "15:30"),
+    }.get(market, (None, None, None))
+    if timezone is None:
+        return False
+    now = datetime.now(ZoneInfo(timezone))
+    if now.weekday() >= 5:
+        return False
+    return datetime.strptime(start, "%H:%M").time() <= now.time() <= datetime.strptime(end, "%H:%M").time()
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -71,5 +89,8 @@ def load_financial_reports(ticker):
 
 
 @st.cache_data(ttl=25, show_spinner=False)
-def load_intraday(ticker):
-    return fetch_a_share_intraday(ticker)
+def load_intraday(ticker, market="CN"):
+    """Load the latest intraday bars using the provider for the selected market."""
+    if market.upper() == "CN":
+        return fetch_a_share_intraday(ticker)
+    return fetch_yahoo_intraday(ticker, market)

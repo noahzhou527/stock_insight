@@ -817,6 +817,98 @@ def fetch_a_share_intraday(ticker: str) -> pd.DataFrame:
     return df
 
 
+def fetch_yahoo_intraday(ticker: str, market: str = "US") -> pd.DataFrame:
+    """Fetch the latest regular-session 5-minute bars for US/KR equities."""
+    market = market.upper()
+    timezone = {"US": "America/New_York", "KR": "Asia/Seoul"}.get(market)
+    if timezone is None:
+        raise DataFetchError("unsupported_intraday_market", f"Yahoo intraday is not supported for {market}.")
+
+    session = _create_yahoo_session()
+    try:
+        instrument = yf.Ticker(ticker, session=session)
+        bars = instrument.history(
+            period="5d",
+            interval="5m",
+            prepost=False,
+            auto_adjust=False,
+        )
+        daily = instrument.history(
+            period="10d",
+            interval="1d",
+            prepost=False,
+            auto_adjust=False,
+        )
+    except Exception as error:
+        raise _classify_provider_error(error) from error
+
+    if bars is None or bars.empty:
+        raise DataFetchError(
+            "yahoo_intraday_empty",
+            "Yahoo Finance returned no recent intraday data for this ticker.",
+        )
+
+    # yfinance can return a MultiIndex even for a single symbol when its
+    # session has previously been used for a group request.
+    if isinstance(bars.columns, pd.MultiIndex):
+        matching_level = next(
+            (level for level in range(bars.columns.nlevels) if ticker in bars.columns.get_level_values(level)),
+            None,
+        )
+        bars = bars.xs(ticker, axis=1, level=matching_level, drop_level=True) if matching_level is not None else bars.droplevel(-1, axis=1)
+    bars = bars.copy()
+    bars.index = pd.to_datetime(bars.index)
+    if getattr(bars.index, "tz", None) is not None:
+        bars.index = bars.index.tz_convert(timezone).tz_localize(None)
+    bars = bars.sort_index().dropna(subset=["Close"])
+    if bars.empty:
+        raise DataFetchError("yahoo_intraday_empty", "Yahoo Finance returned no usable intraday bars.")
+
+    # A single chart should represent the latest available regular session,
+    # including the latest completed day when the market is closed.
+    trade_date = bars.index[-1].date()
+    bars = bars.loc[bars.index.date == trade_date].copy()
+    prices = pd.to_numeric(bars["Close"], errors="coerce")
+    raw_volume = bars["Volume"] if "Volume" in bars.columns else pd.Series(0, index=bars.index)
+    volumes = pd.to_numeric(raw_volume, errors="coerce").fillna(0)
+    amounts = prices * volumes
+    cumulative_volume = volumes.cumsum()
+    avg_price = amounts.cumsum().div(cumulative_volume.replace(0, np.nan)).fillna(prices)
+
+    previous_close = None
+    if daily is not None and not daily.empty and "Close" in daily.columns:
+        daily_index = pd.to_datetime(daily.index)
+        if getattr(daily_index, "tz", None) is not None:
+            daily_index = daily_index.tz_convert(timezone).tz_localize(None)
+        daily_close = pd.Series(pd.to_numeric(daily["Close"], errors="coerce").to_numpy(), index=daily_index.date)
+        prior = daily_close.loc[daily_close.index < trade_date].dropna()
+        if not prior.empty:
+            previous_close = float(prior.iloc[-1])
+    if previous_close is None or not np.isfinite(previous_close):
+        previous_close = float(prices.iloc[0])
+
+    result = pd.DataFrame(
+        {
+            "Price": prices,
+            "Amount": amounts,
+            "AvgPrice": avg_price,
+            "Volume": volumes,
+        },
+        index=bars.index,
+    )
+    result["Change"] = result["Price"] - previous_close
+    result["ChangePct"] = result["Change"] / previous_close * 100 if previous_close else 0.0
+    result.attrs.update(
+        {
+            "pre_close": previous_close,
+            "trade_date": trade_date.isoformat(),
+            "source": "Yahoo Finance 5-minute intraday",
+            "market": market,
+        }
+    )
+    return result
+
+
 def fetch_stock_data(
     ticker: str,
     start_date,

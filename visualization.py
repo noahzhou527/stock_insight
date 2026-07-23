@@ -229,7 +229,11 @@ def plot_intraday(
     volume_metric: str = "volume",
 ) -> go.Figure:
     """绘制当日分时价格、均价、昨收线与分钟成交量。"""
-    is_a_share = market.upper() == "CN"
+    market = market.upper()
+    is_a_share = market == "CN"
+    currency = {"CN": "CNY", "US": "USD", "KR": "KRW"}.get(market, "USD")
+    currency_symbol = {"CN": "¥", "US": "$", "KR": "₩"}.get(market, "$" )
+    volume_unit = "股" if market == "CN" else "股"
     up_color = "#e53935" if is_a_share else "#16a085"
     down_color = "#1e9d55" if is_a_share else "#e74c3c"
     pre_close = float(df.attrs.get("pre_close", df["Price"].iloc[0]))
@@ -279,7 +283,7 @@ def plot_intraday(
             customdata=price_change_pct.round(2).to_numpy(),
             hovertemplate=(
                 "%{x|%H:%M}<br>"
-                "价格: ¥%{y:.2f}<br>"
+                f"价格: {currency_symbol}%{{y:.2f}}<br>"
                 "涨跌幅: %{customdata:.2f}%<extra></extra>"
             ),
         ),
@@ -366,13 +370,13 @@ def plot_intraday(
         go.Bar(
             x=df.index,
             y=df["Volume"],
-            name="成交量（股）",
+            name=f"成交量（{volume_unit}）",
             marker_color=volume_colors,
             marker_line_width=0,
             opacity=0.82,
             visible=volume_metric == "volume",
             showlegend=False,
-            hovertemplate="成交量: %{y:,.0f} 股<extra></extra>",
+            hovertemplate=f"成交量: %{{y:,.0f}} {volume_unit}<extra></extra>",
         ),
         row=2,
         col=1,
@@ -381,13 +385,13 @@ def plot_intraday(
         go.Bar(
             x=df.index,
             y=amount,
-            name="成交额（元）",
+            name=f"成交额（{currency}）",
             marker_color=volume_colors,
             marker_line_width=0,
             opacity=0.82,
             visible=volume_metric == "amount",
             showlegend=False,
-            hovertemplate="成交额: ¥%{y:,.0f}<extra></extra>",
+            hovertemplate=f"成交额: {currency_symbol}%{{y:,.0f}}<extra></extra>",
         ),
         row=2,
         col=1,
@@ -418,13 +422,11 @@ def plot_intraday(
         paper_bgcolor=CHART_BG,
         bargap=0.08,
     )
+    rangebreaks = []
+    if market == "CN":
+        rangebreaks.append(dict(bounds=[11.5, 13], pattern="hour"))
     fig.update_xaxes(
-        rangebreaks=[
-            dict(
-                bounds=[11.5, 13],
-                pattern="hour",
-            )
-        ],
+        rangebreaks=rangebreaks,
         tickformat="%H:%M",
         gridcolor=GRID_COLOR,
         showspikes=True,
@@ -434,7 +436,7 @@ def plot_intraday(
         spikecolor="#64748b",
     )
     fig.update_yaxes(
-        title_text="价格（CNY）",
+        title_text=f"价格（{currency}）",
         range=price_range,
         row=1,
         col=1,
@@ -452,7 +454,7 @@ def plot_intraday(
         showgrid=False,
     )
     fig.update_yaxes(
-        title_text="成交额（元）" if volume_metric == "amount" else "成交量（股）",
+        title_text=(f"成交额（{currency}）" if volume_metric == "amount" else "成交量"),
         row=2,
         col=1,
         gridcolor=GRID_COLOR,
