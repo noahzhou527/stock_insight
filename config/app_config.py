@@ -5,7 +5,7 @@ import os
 import streamlit as st
 
 
-VALUATION_CACHE_VERSION = 4
+VALUATION_CACHE_VERSION = 5
 US_TICKER_OPTIONS = {
     "Apple (AAPL)": "AAPL",
     "Microsoft (MSFT)": "MSFT",

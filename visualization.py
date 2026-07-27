@@ -7,6 +7,8 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
 
+from formatters import chart_unit, format_amount, format_volume
+
 
 CHART_BG = "#0d1422"
 PLOT_BG = "#0a111e"
@@ -87,12 +89,15 @@ def plot_candlestick(
         if "Amount" in df.columns
         else df["Close"] * df["Volume"]
     )
-    volume_y = amount if show_amount else df["Volume"]
-    volume_label = f"成交额（{currency}）" if show_amount else "成交量"
-    volume_hover = (
-        f"成交额: {currency} %{{y:,.0f}}<extra></extra>"
+    metric = "amount" if show_amount else "volume"
+    scale, unit = chart_unit(metric, market)
+    volume_y = (amount if show_amount else df["Volume"]) / scale
+    volume_label = f"成交额（{unit}）" if show_amount else f"成交量（{unit}）"
+    volume_hover = "成交额：%{customdata}<extra></extra>" if show_amount else "成交量：%{customdata}<extra></extra>"
+    volume_customdata = (
+        amount.map(lambda value: format_amount(value, market)).to_numpy()
         if show_amount
-        else "成交量: %{y:,.0f}<extra></extra>"
+        else df["Volume"].map(lambda value: format_volume(value, market)).to_numpy()
     )
     fig = make_subplots(
         rows=2,
@@ -109,6 +114,12 @@ def plot_candlestick(
         low=df['Low'],
         close=df['Close'],
         name='K线',
+        hovertemplate=(
+            "开盘：%{open:.2f}<br>"
+            "最高：%{high:.2f}<br>"
+            "最低：%{low:.2f}<br>"
+            "收盘：%{close:.2f}<extra></extra>"
+        ),
         increasing_line_color=up_color,
         increasing_fillcolor=up_color,
         decreasing_line_color=down_color,
@@ -169,6 +180,7 @@ def plot_candlestick(
             marker_line_width=0,
             name=volume_label,
             opacity=0.82,
+            customdata=volume_customdata,
             hovertemplate=volume_hover,
         ),
         row=2,
@@ -217,7 +229,7 @@ def plot_candlestick(
         row=2,
         col=1,
         gridcolor=GRID_COLOR,
-        tickformat="~s",
+        tickformat=".2f",
     )
 
     return _apply_dark_theme(fig)
@@ -233,7 +245,6 @@ def plot_intraday(
     is_a_share = market == "CN"
     currency = {"CN": "CNY", "US": "USD", "KR": "KRW"}.get(market, "USD")
     currency_symbol = {"CN": "¥", "US": "$", "KR": "₩"}.get(market, "$" )
-    volume_unit = "股" if market == "CN" else "股"
     up_color = "#e53935" if is_a_share else "#16a085"
     down_color = "#1e9d55" if is_a_share else "#e74c3c"
     pre_close = float(df.attrs.get("pre_close", df["Price"].iloc[0]))
@@ -262,6 +273,8 @@ def plot_intraday(
         up_color if price >= pre_close else down_color
         for price in df["Price"]
     ]
+    volume_scale, volume_chart_unit = chart_unit("volume", market)
+    amount_scale, amount_chart_unit = chart_unit("amount", market)
     fig = make_subplots(
         rows=2,
         cols=1,
@@ -369,14 +382,15 @@ def plot_intraday(
     fig.add_trace(
         go.Bar(
             x=df.index,
-            y=df["Volume"],
-            name=f"成交量（{volume_unit}）",
+            y=df["Volume"] / volume_scale,
+            name=f"成交量（{volume_chart_unit}）",
             marker_color=volume_colors,
             marker_line_width=0,
             opacity=0.82,
             visible=volume_metric == "volume",
             showlegend=False,
-            hovertemplate=f"成交量: %{{y:,.0f}} {volume_unit}<extra></extra>",
+            customdata=df["Volume"].map(lambda value: format_volume(value, market)).to_numpy(),
+            hovertemplate="成交量：%{customdata}<extra></extra>",
         ),
         row=2,
         col=1,
@@ -384,14 +398,15 @@ def plot_intraday(
     fig.add_trace(
         go.Bar(
             x=df.index,
-            y=amount,
-            name=f"成交额（{currency}）",
+            y=amount / amount_scale,
+            name=f"成交额（{amount_chart_unit}）",
             marker_color=volume_colors,
             marker_line_width=0,
             opacity=0.82,
             visible=volume_metric == "amount",
             showlegend=False,
-            hovertemplate=f"成交额: {currency_symbol}%{{y:,.0f}}<extra></extra>",
+            customdata=amount.map(lambda value: format_amount(value, market)).to_numpy(),
+            hovertemplate="成交额：%{customdata}<extra></extra>",
         ),
         row=2,
         col=1,
@@ -454,11 +469,11 @@ def plot_intraday(
         showgrid=False,
     )
     fig.update_yaxes(
-        title_text=(f"成交额（{currency}）" if volume_metric == "amount" else "成交量"),
+        title_text=(f"成交额（{amount_chart_unit}）" if volume_metric == "amount" else f"成交量（{volume_chart_unit}）"),
         row=2,
         col=1,
         gridcolor=GRID_COLOR,
-        tickformat="~s",
+        tickformat=".2f",
     )
     return _apply_dark_theme(fig)
 

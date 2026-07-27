@@ -579,6 +579,9 @@ def fetch_a_share_financial_reports(ticker: str) -> pd.DataFrame:
             }
         )
     result = pd.DataFrame(rows)
+    result.attrs["ttm_net_profit"] = _calculate_ttm_net_profit(
+        periods, fields.get("净利润", [])
+    )
     result.attrs["source"] = "同花顺 F10"
     return result
 
@@ -629,6 +632,66 @@ def _parse_market_cap(value: str | None) -> float | None:
         return None
     result = number * multiplier
     return result if result > 0 and np.isfinite(result) else None
+
+
+def _financial_amount_to_yuan(value) -> float | None:
+    """Convert an F10 financial amount such as ``281.96亿`` to yuan."""
+    if value is False or value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value) if np.isfinite(value) else None
+
+    normalized = re.sub(r"<[^>]+>", " ", str(value))
+    normalized = normalized.replace(",", "").replace(" ", "").strip()
+    if normalized in {"", "--", "—", "-"}:
+        return None
+    match = re.search(r"([-+]?\d+(?:\.\d+)?)\s*(万亿|亿|万|元)?", normalized)
+    if not match:
+        return None
+    multiplier = {"万亿": 1e12, "亿": 1e8, "万": 1e4, "元": 1.0, None: 1.0}[match.group(2)]
+    amount = float(match.group(1)) * multiplier
+    return amount if np.isfinite(amount) else None
+
+
+def _calculate_ttm_net_profit(periods, net_profit_values) -> float | None:
+    """Calculate TTM profit from cumulative F10 reports.
+
+    F10 quarterly net profit is year-to-date.  Therefore TTM is the latest
+    annual profit minus the comparable prior-year cumulative profit plus the
+    newest cumulative profit.
+    """
+    if len(periods) != len(net_profit_values):
+        return None
+
+    dates = [str(period) for period in periods]
+    annual_dates = [date for date in dates if date.endswith("-12-31")]
+    if not annual_dates:
+        return None
+    latest_annual = max(annual_dates)
+    latest_year = int(latest_annual[:4])
+
+    current_periods = [
+        date for date in dates
+        if int(date[:4]) == latest_year + 1 and not date.endswith("-12-31")
+    ]
+    if not current_periods:
+        return None
+    current_period = max(current_periods)
+    prior_comparable_period = f"{latest_year}-{current_period[5:]}"
+    if prior_comparable_period not in dates:
+        return None
+
+    values_by_period = {
+        date: _financial_amount_to_yuan(net_profit_values[index])
+        for index, date in enumerate(dates)
+    }
+    annual_profit = values_by_period.get(latest_annual)
+    current_profit = values_by_period.get(current_period)
+    prior_comparable_profit = values_by_period.get(prior_comparable_period)
+    if any(value is None for value in (annual_profit, current_profit, prior_comparable_profit)):
+        return None
+    ttm_profit = annual_profit - prior_comparable_profit + current_profit
+    return ttm_profit if np.isfinite(ttm_profit) else None
 
 
 def fetch_a_share_valuation(ticker: str) -> dict:
@@ -709,19 +772,34 @@ def fetch_a_share_valuation(ticker: str) -> dict:
         except Exception:
             pass
 
+    market_cap = _parse_market_cap(
+        market_cap_match.group(1) if market_cap_match else None
+    )
+    pe_ttm = _parse_pe_value(ttm_match.group(1) if ttm_match else None)
+    ttm_net_profit = None
+    source = "同花顺公开 F10"
+    if market_cap:
+        try:
+            financial_reports = fetch_a_share_financial_reports(ticker)
+            ttm_net_profit = financial_reports.attrs.get("ttm_net_profit")
+            if ttm_net_profit is not None and ttm_net_profit > 0:
+                pe_ttm = market_cap / ttm_net_profit
+                source = "同花顺公开 F10（按财报推算 TTM）"
+        except DataFetchError:
+            pass
+
     return {
-        "pe_ttm": _parse_pe_value(ttm_match.group(1) if ttm_match else None),
+        "pe_ttm": pe_ttm,
         "pe_static": _parse_pe_value(
             static_match.group(1) if static_match else None
         ),
         "pe_dynamic": _parse_pe_value(
             dynamic_match.group(1) if dynamic_match else None
         ),
-        "market_cap": _parse_market_cap(
-            market_cap_match.group(1) if market_cap_match else None
-        ),
+        "market_cap": market_cap,
+        "ttm_net_profit": ttm_net_profit,
         "as_of": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"),
-        "source": "同花顺公开 F10",
+        "source": source,
     }
 
 

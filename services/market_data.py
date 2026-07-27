@@ -7,6 +7,7 @@ import pandas as pd
 import streamlit as st
 
 from data_fetcher import (
+    DataFetchError,
     fetch_a_share_financial_reports,
     fetch_a_share_intraday,
     fetch_yahoo_intraday,
@@ -50,8 +51,79 @@ def is_market_trading_session(market: str) -> bool:
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def load_data(ticker, start, end, market, ths_access_token):
+def load_historical_data(ticker, start, end, market, ths_access_token):
+    """Load provider daily bars, which can lag the active trading session."""
     return fetch_stock_data(ticker, start, end, market=market, ths_access_token=ths_access_token)
+
+
+def _intraday_daily_bar(intraday: pd.DataFrame) -> pd.DataFrame:
+    """Aggregate the latest intraday session into one provisional OHLCV bar."""
+    if intraday is None or intraday.empty or "Price" not in intraday.columns:
+        return pd.DataFrame()
+
+    prices = pd.to_numeric(intraday["Price"], errors="coerce").dropna()
+    if prices.empty:
+        return pd.DataFrame()
+
+    trade_date = intraday.attrs.get("trade_date") or intraday.index[-1]
+    index = pd.DatetimeIndex([pd.Timestamp(trade_date).normalize()])
+    raw_volume = intraday["Volume"] if "Volume" in intraday else pd.Series(0.0, index=intraday.index)
+    volume = pd.to_numeric(raw_volume, errors="coerce").fillna(0)
+    if "Amount" in intraday:
+        amount = pd.to_numeric(intraday["Amount"], errors="coerce").fillna(0)
+    else:
+        amount = prices.reindex(intraday.index).fillna(0) * volume
+    return pd.DataFrame(
+        {
+            "Open": [float(prices.iloc[0])],
+            "High": [float(prices.max())],
+            "Low": [float(prices.min())],
+            "Close": [float(prices.iloc[-1])],
+            "Volume": [float(volume.sum())],
+            "Amount": [float(amount.sum())],
+        },
+        index=index,
+    )
+
+
+def merge_intraday_daily_bar(
+    historical: pd.DataFrame,
+    intraday: pd.DataFrame,
+    end_date,
+) -> pd.DataFrame:
+    """Add or replace the selected range's newest day with an intraday bar."""
+    bar = _intraday_daily_bar(intraday)
+    if bar.empty or bar.index[-1] > pd.Timestamp(end_date).normalize():
+        return historical
+
+    result = pd.concat([historical, bar], sort=False)
+    result.index = pd.to_datetime(result.index).normalize()
+    result = result[~result.index.duplicated(keep="last")].sort_index()
+    result.attrs.update(historical.attrs)
+    result.attrs["includes_intraday_daily_bar"] = True
+    return result
+
+
+def load_data(ticker, start, end, market, ths_access_token):
+    """Load daily history and overlay the latest available intraday session."""
+    historical_error = None
+    try:
+        historical = load_historical_data(ticker, start, end, market, ths_access_token)
+    except DataFetchError as error:
+        historical_error = error
+        historical = pd.DataFrame(columns=["Open", "High", "Low", "Close", "Volume", "Amount"])
+
+    try:
+        intraday = load_intraday(ticker, market)
+    except DataFetchError:
+        if historical_error is not None:
+            raise historical_error
+        return historical
+
+    result = merge_intraday_daily_bar(historical, intraday, end)
+    if result.empty and historical_error is not None:
+        raise historical_error
+    return result
 
 
 def indicator_warmup_start(display_start, ma_periods, rsi_period, show_bbi, show_boll):
@@ -74,7 +146,7 @@ def trim_to_display_range(frame, display_start, display_end):
 
 
 @st.cache_data(ttl=300, show_spinner=False)
-def load_valuation(ticker, cache_version=4):
+def load_valuation(ticker, cache_version=5):
     return fetch_a_share_valuation(ticker)
 
 

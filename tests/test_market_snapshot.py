@@ -49,8 +49,9 @@ class MarketSnapshotTests(unittest.TestCase):
     def test_universe_is_complete_and_uses_current_beijing_codes(self):
         rows = flatten_a_share_universe(A_SHARE_UNIVERSE)
         tickers = {row["ticker"] for row in rows}
-        self.assertEqual(len(rows), 86)
-        self.assertEqual(len(tickers), 86)
+        self.assertEqual(len(rows), 87)
+        self.assertEqual(len(tickers), 87)
+        self.assertIn("688825.SH", tickers)
         self.assertIn("920190.BJ", tickers)
         self.assertIn("920725.BJ", tickers)
 
@@ -59,17 +60,17 @@ class MarketSnapshotTests(unittest.TestCase):
         fake_session = _FakeSession()
         with patch("market_snapshot.requests.Session", return_value=fake_session):
             result = _request_market_rows(rows)
-        self.assertEqual(len(result), 86)
-        self.assertEqual(len(fake_session.calls), 2)
-        self.assertTrue(all(len(call) == 43 for call in fake_session.calls))
+        self.assertEqual(len(result), 87)
+        self.assertEqual(len(fake_session.calls), 3)
+        self.assertTrue(all(len(call) <= 43 for call in fake_session.calls))
 
     def test_batch_retries_a_transient_disconnect(self):
         rows = flatten_a_share_universe(A_SHARE_UNIVERSE)
         flaky_session = _FlakySession()
         with patch("market_snapshot.requests.Session", return_value=flaky_session):
             result = _request_market_rows(rows)
-        self.assertEqual(len(result), 86)
-        self.assertEqual(len(flaky_session.calls), 3)
+        self.assertEqual(len(result), 87)
+        self.assertEqual(len(flaky_session.calls), 4)
 
     def test_latest_completed_daily_close_and_valuation_scaling(self):
         tz = ZoneInfo("Asia/Shanghai")

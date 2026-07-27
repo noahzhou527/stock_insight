@@ -2,7 +2,7 @@
 
 The public functions in this module deliberately operate on a flattened stock
 universe so the data layer stays independent from Streamlit. Eastmoney's
-``ulist.np/get`` endpoint is called in two bounded batches; missing rows are
+``ulist.np/get`` endpoint is called in bounded batches; missing rows are
 filled from the last atomic on-disk snapshot instead of triggering N
 single-security requests.
 """
@@ -256,8 +256,8 @@ def _request_market_rows(rows: list[dict]) -> list[dict]:
     """Fetch the universe in bounded Eastmoney batch requests.
 
     Eastmoney currently closes oversized ``ulist.np`` connections before a
-    response is written.  A maximum of 43 securities keeps the 86-stock pool
-    to two requests while retaining the provider's batch semantics.
+    response is written.  A maximum of 43 securities retains the provider's
+    batch semantics as the watchlist grows.
     """
 
     _clear_broken_local_proxy()

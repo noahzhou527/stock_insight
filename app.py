@@ -14,11 +14,13 @@ from analysis import (
     calculate_rsi,
 )
 from indicator_help import render_indicator_help
+from formatters import format_amount, format_statistics, format_volume
 from market_snapshot import (
     fetch_a_share_market_snapshot,
     flatten_a_share_universe,
     rank_snapshot,
 )
+from new_listing import get_new_listing_state, pad_single_daily_bar_chart
 from news_fetcher import fetch_recent_financial_news
 from visualization import plot_candlestick, plot_intraday, plot_rsi, plot_macd
 from config.app_config import VALUATION_CACHE_VERSION, configure_page, get_ths_access_token
@@ -105,7 +107,8 @@ st.markdown("""
     .main-header {
         font-size: clamp(2rem, 3.6vw, 2.7rem);
         font-weight: 750;
-        line-height: 1.05;
+        line-height: 1.15;
+        padding-bottom: 0.06em;
         letter-spacing: -0.04em;
         background: linear-gradient(110deg, #f3f8ff 15%, #67e8f9 58%, #a78bfa 100%);
         -webkit-background-clip: text;
@@ -889,7 +892,10 @@ try:
         st.stop()
 
     data_source = indicator_history_df.attrs.get("source", "Yahoo Finance")
+    new_listing = get_new_listing_state(df, rsi_period)
     st.success(f"成功加载 {ticker} 从 {start_date} 到 {end_date} 的数据")
+    if indicator_history_df.attrs.get("includes_intraday_daily_bar"):
+        st.caption("日 K 已包含当日分时合成的实时 K 线；收盘后数据源完成结算时会以正式日线为准。")
     if data_source in {"同花顺", "同花顺 iFinD"}:
         st.caption("数据来源：同花顺")
     elif data_source == "同花顺本地缓存":
@@ -921,7 +927,8 @@ st.markdown("---")
 
 # 计算关键指标。A 股优先使用最新分时价，接口暂不可用时回退日线收盘价。
 latest_price = df['Close'].iloc[-1]
-prev_price = df['Close'].iloc[-2]
+has_previous_price = new_listing["previous_close"] is not None
+prev_price = new_listing["previous_close"] if has_previous_price else latest_price
 current_price_label = "当前价格"
 if market in {"CN", "US", "KR"}:
     intraday_session_key = f"intraday:{market}:{ticker}"
@@ -934,13 +941,16 @@ if market in {"CN", "US", "KR"}:
             intraday_snapshot = None
     if intraday_snapshot is not None and not intraday_snapshot.empty:
         latest_price = float(intraday_snapshot["Price"].iloc[-1])
-        prev_price = float(intraday_snapshot.attrs.get("pre_close", prev_price))
+        intraday_pre_close = intraday_snapshot.attrs.get("pre_close")
+        if intraday_pre_close is not None and np.isfinite(intraday_pre_close) and intraday_pre_close > 0:
+            prev_price = float(intraday_pre_close)
+            has_previous_price = True
         current_price_label = "当前价格（分时）"
     else:
         current_price_label = "当前价格（最近收盘）"
 
-price_change = latest_price - prev_price
-price_change_pct = (price_change / prev_price) * 100
+price_change = latest_price - prev_price if has_previous_price else 0.0
+price_change_pct = (price_change / prev_price) * 100 if has_previous_price and prev_price else 0.0
 
 high_52w = df['High'].max()
 low_52w = df['Low'].min()
@@ -952,12 +962,16 @@ daily_amount = (
 )
 max_daily_amount = daily_amount.max()
 volatility = df['Close'].pct_change().std() * np.sqrt(252) * 100
+volatility_label = f"{volatility:.1f}%" if new_listing["volatility_ready"] and np.isfinite(volatility) else "数据不足"
 currency_symbol = "¥" if market == "CN" else "₩" if market == "KR" else "$"
-price_change_sign = "+" if price_change >= 0 else "-"
-price_delta_label = (
-    f"{price_change_sign}{currency_symbol}{abs(price_change):.2f} "
-    f"({price_change_pct:+.2f}%)"
-)
+if has_previous_price:
+    price_change_sign = "+" if price_change >= 0 else "-"
+    price_delta_label = (
+        f"{price_change_sign}{currency_symbol}{abs(price_change):.2f} "
+        f"({price_change_pct:+.2f}%)"
+    )
+else:
+    price_delta_label = "首日上市，暂无前收盘价"
 
 valuation = {
     "pe_ttm": None,
@@ -1002,6 +1016,20 @@ def format_market_cap(value, selected_market):
         return f"${value / 1e6:.2f}M"
     return f"${value:,.0f}"
 
+
+def data_detail_column_config(index_label: str):
+    """Keep the two data-detail tables compact and consistently right-aligned."""
+    return {
+        "_index": st.column_config.TextColumn(index_label, width=120, alignment="right"),
+        "开盘价": st.column_config.NumberColumn(width=110, alignment="right"),
+        "最高价": st.column_config.NumberColumn(width=110, alignment="right"),
+        "最低价": st.column_config.NumberColumn(width=110, alignment="right"),
+        "收盘价": st.column_config.NumberColumn(width=110, alignment="right"),
+        "成交量": st.column_config.TextColumn(width=155, alignment="right"),
+        "成交额": st.column_config.TextColumn(width=155, alignment="right"),
+        "RSI（相对强弱指标）": st.column_config.NumberColumn(width=190, alignment="right"),
+    }
+
 if market == "CN":
     price_columns = st.columns(3)
     with price_columns[0]:
@@ -1023,11 +1051,11 @@ if market == "CN":
 
     secondary_columns = st.columns(4)
     with secondary_columns[0]:
-        st.metric("平均成交量", f"{volume_avg / 1e6:.1f}M")
+        st.metric("平均成交量", format_volume(volume_avg, market))
     with secondary_columns[1]:
-        st.metric("区间单日最大成交额", format_market_cap(max_daily_amount, market))
+        st.metric("区间单日最大成交额", format_amount(max_daily_amount, market))
     with secondary_columns[2]:
-        st.metric("年化波动率", f"{volatility:.1f}%")
+        st.metric("年化波动率", volatility_label)
     with secondary_columns[3]:
         st.metric("总市值", format_market_cap(market_cap, market))
 
@@ -1048,6 +1076,11 @@ if market == "CN":
         st.caption(
             f"估值数据来源：{valuation['source']} · {valuation.get('as_of', '')}"
         )
+        if valuation.get("ttm_net_profit") is not None:
+            st.caption(
+                "TTM 净利润（按最近四个季度财报推算）："
+                f"{format_amount(valuation['ttm_net_profit'], market)}"
+            )
 else:
     primary_metric_columns = st.columns(3)
     with primary_metric_columns[0]:
@@ -1064,11 +1097,11 @@ else:
 
     secondary_metric_columns = st.columns(4)
     with secondary_metric_columns[0]:
-        st.metric("平均成交量", f"{volume_avg / 1e6:.1f}M")
+        st.metric("平均成交量", format_volume(volume_avg, market))
     with secondary_metric_columns[1]:
-        st.metric("区间单日最大成交额", format_market_cap(max_daily_amount, market))
+        st.metric("区间单日最大成交额", format_amount(max_daily_amount, market))
     with secondary_metric_columns[2]:
-        st.metric("年化波动率", f"{volatility:.1f}%")
+        st.metric("年化波动率", volatility_label)
     with secondary_metric_columns[3]:
         st.metric("总市值", format_market_cap(market_cap, market))
 
@@ -1083,6 +1116,10 @@ tab1, tab_intraday, tab2, tab3, tab4, tab5 = st.tabs(
         "财务报表",
     ]
 )
+
+history_rsi = calculate_rsi(indicator_history_df, rsi_period)
+df['RSI'] = history_rsi.reindex(df.index)
+df_macd = trim_to_display_range(calculate_macd(indicator_history_df), start_date, end_date)
 
 # ============ Tab 1: 价格分析 ============
 with tab1:
@@ -1117,8 +1154,9 @@ with tab1:
     df_with_ma = trim_to_display_range(df_with_ma, start_date, end_date)
 
     # 绘制K线图
+    chart_df = pad_single_daily_bar_chart(df_with_ma)
     fig = plot_candlestick(
-        df_with_ma,
+        chart_df,
         ma_periods,
         currency="CNY" if market == "CN" else "USD",
         market=market,
@@ -1138,14 +1176,14 @@ with tab2:
 
     with col1:
         st.subheader("RSI (相对强弱指标)")
-        history_rsi = calculate_rsi(indicator_history_df, rsi_period)
-        df['RSI'] = history_rsi.reindex(df.index)
         fig_rsi = plot_rsi(df, rsi_period)
         st.plotly_chart(fig_rsi, width="stretch")
 
         # RSI 解读
         latest_rsi = df['RSI'].iloc[-1]
-        if latest_rsi > 70:
+        if not new_listing["rsi_ready"]:
+            st.info(f"历史日 K 不足 {rsi_period + 1} 根，暂无法计算 RSI。")
+        elif latest_rsi > 70:
             st.warning(f"⚠️ RSI = {latest_rsi:.1f} > 70，可能处于**超买**状态")
         elif latest_rsi < 30:
             st.success(f"✅ RSI = {latest_rsi:.1f} < 30，可能处于**超卖**状态")
@@ -1154,15 +1192,15 @@ with tab2:
 
     with col2:
         st.subheader("MACD (指数平滑异同平均线)")
-        df_macd = calculate_macd(indicator_history_df)
-        df_macd = trim_to_display_range(df_macd, start_date, end_date)
         fig_macd = plot_macd(df_macd)
         st.plotly_chart(fig_macd, width="stretch")
 
         # MACD 解读
         latest_macd = df_macd['MACD'].iloc[-1]
         latest_signal = df_macd['Signal'].iloc[-1]
-        if latest_macd > latest_signal:
+        if not new_listing["macd_ready"]:
+            st.info("历史日 K 不足 26 根，暂不解读 MACD 信号。")
+        elif latest_macd > latest_signal:
             st.success(f"✅ MACD ({latest_macd:.2f}) > Signal ({latest_signal:.2f})，**看涨信号**")
         else:
             st.warning(f"⚠️ MACD ({latest_macd:.2f}) < Signal ({latest_signal:.2f})，**看跌信号**")
@@ -1174,14 +1212,39 @@ with tab3:
     # 数据筛选
     col1, col2 = st.columns([1, 3])
     with col1:
-        rows_to_show = st.slider("显示行数", 10, min(100, len(df)), 20)
+        max_rows = min(100, len(df))
+        rows_to_show = (
+            st.slider("显示行数", 1, max_rows, min(20, max_rows))
+            if new_listing["show_rows_slider"]
+            else max_rows
+        )
 
     # 显示数据
     display_df = df.tail(rows_to_show).copy()
     display_df.index = display_df.index.strftime('%Y-%m-%d')
     display_df = display_df.round(2)
+    if "Volume" in display_df:
+        display_df["Volume"] = display_df["Volume"].map(lambda value: format_volume(value, market))
+    if "Amount" in display_df:
+        display_df["Amount"] = display_df["Amount"].map(lambda value: format_amount(value, market))
+    display_df.index.name = "日期"
+    display_df = display_df.rename(
+        columns={
+            "Open": "开盘价",
+            "High": "最高价",
+            "Low": "最低价",
+            "Close": "收盘价",
+            "Volume": "成交量",
+            "Amount": "成交额",
+            "RSI": "RSI（相对强弱指标）",
+        }
+    )
 
-    st.dataframe(display_df, width="stretch")
+    st.dataframe(
+        display_df,
+        width="stretch",
+        column_config=data_detail_column_config("日期"),
+    )
 
     # 下载按钮
     csv = df.to_csv().encode('utf-8')
@@ -1194,7 +1257,11 @@ with tab3:
 
     # 数据统计
     st.subheader("数据统计摘要")
-    st.write(df.describe().round(2))
+    st.dataframe(
+        format_statistics(df, market),
+        width="stretch",
+        column_config=data_detail_column_config("统计项"),
+    )
 
 # ============ Tab 4: 投资洞察 ============
 with tab4:
@@ -1204,13 +1271,17 @@ with tab4:
     signals = []
 
     # 价格趋势
-    if df['Close'].iloc[-1] > df['Close'].iloc[-20:].mean():
+    if not new_listing["trend_ready"]:
+        signals.append(("历史数据", "待观察", f"上市以来仅 {new_listing['daily_bars']} 根日 K，暂不生成技术信号", "blue"))
+    elif df['Close'].iloc[-1] > df['Close'].iloc[-20:].mean():
         signals.append(("价格趋势", "看涨", "当前价格高于20日均线", "green"))
     else:
         signals.append(("价格趋势", "看跌", "当前价格低于20日均线", "red"))
 
     # RSI
-    if df['RSI'].iloc[-1] < 30:
+    if not new_listing["rsi_ready"]:
+        signals.append(("RSI指标", "待观察", "历史日 K 不足，暂不生成 RSI 信号", "blue"))
+    elif df['RSI'].iloc[-1] < 30:
         signals.append(("RSI指标", "超卖", "RSI低于30，可能存在反弹机会", "green"))
     elif df['RSI'].iloc[-1] > 70:
         signals.append(("RSI指标", "超买", "RSI高于70，可能存在回调风险", "red"))
@@ -1218,13 +1289,17 @@ with tab4:
         signals.append(("RSI指标", "中性", "RSI处于正常区间", "gray"))
 
     # MACD
-    if df_macd['MACD'].iloc[-1] > df_macd['Signal'].iloc[-1]:
+    if not new_listing["macd_ready"]:
+        signals.append(("MACD指标", "待观察", "历史日 K 不足，暂不生成 MACD 信号", "blue"))
+    elif df_macd['MACD'].iloc[-1] > df_macd['Signal'].iloc[-1]:
         signals.append(("MACD指标", "金叉", "MACD上穿Signal线，买入信号", "green"))
     else:
         signals.append(("MACD指标", "死叉", "MACD下穿Signal线，卖出信号", "red"))
 
     # 波动率
-    if volatility > 30:
+    if not new_listing["volatility_ready"]:
+        signals.append(("波动率", "待观察", "至少需要两根日 K 才能计算波动率", "blue"))
+    elif volatility > 30:
         signals.append(("波动率", "高风险", f"年化波动率达{volatility:.1f}%，需注意风险", "orange"))
     else:
         signals.append(("波动率", "正常", f"年化波动率为{volatility:.1f}%", "green"))
@@ -1239,20 +1314,19 @@ with tab4:
             st.markdown("---")
 
     # 综合评分
-    bullish_count = sum(1 for _, status, _, _ in signals if status in ["看涨", "超卖", "金叉", "正常"])
-    total_signals = len(signals)
-    score = (bullish_count / total_signals) * 100
-
     st.subheader("综合评分")
-    progress_color = "green" if score > 60 else "orange" if score > 40 else "red"
-    st.progress(score / 100, text=f"看涨评分: {score:.0f}/100")
-
-    if score > 60:
-        st.success("综合建议：技术指标偏向看涨，可考虑适量建仓")
-    elif score > 40:
-        st.warning("综合建议：信号混合，建议观望或轻仓操作")
+    if not new_listing["trend_ready"]:
+        st.info("新股历史数据不足，暂不提供综合技术评分。")
     else:
-        st.error("综合建议：技术指标偏向看跌，建议谨慎或减仓")
+        bullish_count = sum(1 for _, status, _, _ in signals if status in ["看涨", "超卖", "金叉", "正常"])
+        score = (bullish_count / len(signals)) * 100
+        st.progress(score / 100, text=f"看涨评分: {score:.0f}/100")
+        if score > 60:
+            st.success("综合建议：技术指标偏向看涨，可考虑适量建仓")
+        elif score > 40:
+            st.warning("综合建议：信号混合，建议观望或轻仓操作")
+        else:
+            st.error("综合建议：技术指标偏向看跌，建议谨慎或减仓")
 
 # ============ Tab 5: 财务报表 ============
 with tab5:
