@@ -2,24 +2,26 @@
 
 **Interactive Financial Data Analysis Dashboard**
 
-A Streamlit and Plotly app for personal stock research across US stocks and China A-share equities. It combines historical price analysis, intraday monitoring, technical indicators, valuation snapshots, financial reports, and rule-based investment observations in one local dashboard.
+A Streamlit and Plotly app for personal stock research across US, Korean, and China A-share equities. It combines historical price analysis, intraday monitoring, technical indicators, valuation snapshots, financial reports, and rule-based investment observations in one local dashboard.
 
 ## Product Overview
 
 Stock Insight currently supports:
 
-- US stock daily OHLCV and market-cap data through Yahoo Finance / `yfinance`
+- US and Korean daily OHLCV and market-cap data through Yahoo Finance / `yfinance`
 - China A-share daily OHLCV data from Tonghuashun public data sources
 - A curated A-share universe focused on AI hardware and advanced manufacturing
-- Custom ticker input for both supported markets
+- Custom ticker input for US and China A-share markets, plus a curated Korean-stock view
 - Candlestick charts with MA, optional BBI, optional BOLL, and market-specific red/green colors
 - Price-analysis subplot switching between volume and traded amount
 - Trading-calendar cleanup that hides weekends and missing exchange sessions
-- A-share intraday charts with price, average price, previous close, percentage scale, and volume/traded-amount toggle
+- Intraday charts with price, average price, previous close, percentage scale, and volume/traded-amount toggle
+- Korean-stock display-currency toggle between Korean won and US dollars, including prices, charts, market cap, and financial reports
+- New-listing safeguards for incomplete history, including first-day K-line rendering and indicator/data-detail guards
 - A-share valuation overview with PE TTM, static PE, dynamic PE, and market cap
 - Full-universe A-share rankings for intraday gain, traded amount, market cap, and PE TTM
 - A 72-hour financial-news view combining Yahoo Finance, Tonghuashun, and Douyin hot topics
-- Latest annual report plus current fiscal-year quarterly financial reports
+- Financial reports with the most recent four fiscal years and four reported quarters
 - RSI and MACD technical indicator panels
 - A dedicated indicator explanation page
 - CSV export for loaded historical price data
@@ -113,11 +115,13 @@ The real secrets file is ignored by Git.
 
 | Feature | Description |
 | --- | --- |
-| **Multi-market Support** | US stocks and China A-share equities |
+| **Multi-market Support** | US stocks, Korean stocks, and China A-share equities |
 | **Interactive Charts** | Candlestick, MA, BBI, BOLL, RSI, MACD, and intraday charts |
 | **Volume/Amount Toggle** | Switch chart subplots between traded volume and traded amount |
 | **Valuation View** | PE TTM, static PE, dynamic PE, and market cap for A shares |
-| **Financial Reports** | Latest annual report and current fiscal-year quarterly reports |
+| **Financial Reports** | Latest four fiscal years and four reported quarters; US/Korean reports use Yahoo Finance |
+| **Korean Currency Toggle** | Switch Korean-stock prices, amounts, market cap, and financial reports between KRW and USD |
+| **New-listing Support** | Safely renders first-day or short-history listings without invalid indicators or widgets |
 | **A-share Rankings** | Full curated-universe rankings with live intraday refresh |
 | **Market Overview** | China and US benchmark indices, A-share turnover comparison, and market breadth |
 | **Financial News** | Recent Yahoo Finance, Tonghuashun, and Douyin financial headlines |
@@ -130,11 +134,18 @@ The real secrets file is ignored by Git.
 
 | Market | Data | Source |
 | --- | --- | --- |
-| US stocks | Daily OHLCV and market cap | Yahoo Finance / `yfinance` |
+| US stocks | Daily OHLCV, market cap, and financial reports | Yahoo Finance / `yfinance` |
+| Korean stocks | Daily OHLCV, market cap, intraday data, and financial reports | Yahoo Finance / `yfinance` |
 | China A shares | Daily OHLCV, valuation, intraday, financial reports | Tonghuashun public pages |
 | China A-share universe | Batch quote rankings | Eastmoney public quote pages |
 | Financial news | Headlines and hot topics | Yahoo Finance, Tonghuashun, Douyin |
 | Beijing Stock Exchange | Daily prices when configured | Tonghuashun iFinD token path |
+
+### Data Quality Notes
+
+- If a provider omits daily traded amount, the dashboard estimates it as `Close × Volume` so the amount chart remains continuous. Provider-supplied amounts always take precedence.
+- Korean daily-history rows with an implausible placeholder volume relative to nearby high-liquidity sessions are excluded rather than displayed as valid trading activity.
+- Current-day bars synthesized from intraday data are provisional and are replaced by the provider's settled daily bar when available.
 
 ### Technical Indicators
 
