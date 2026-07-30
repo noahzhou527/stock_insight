@@ -19,14 +19,29 @@ def get_new_listing_state(history: pd.DataFrame, rsi_period: int) -> dict:
     }
 
 
-def pad_single_daily_bar_chart(history: pd.DataFrame, sessions: int = 252) -> pd.DataFrame:
-    """Reserve blank future trading slots so a first-day candle stays left-aligned and one-day wide."""
-    if len(history) != 1:
+def is_new_listing_history(history: pd.DataFrame, requested_start) -> bool:
+    """Identify listings that have no history near the requested calculation start."""
+    if history.empty:
+        return False
+    first_daily_bar = pd.Timestamp(history.index.min()).normalize()
+    expected_start = pd.Timestamp(requested_start).normalize()
+    return first_daily_bar > expected_start + pd.offsets.BDay(5)
+
+
+def pad_new_listing_chart(
+    history: pd.DataFrame,
+    is_new_listing: bool,
+    display_start,
+    display_end,
+) -> pd.DataFrame:
+    """Match a new listing's canvas to the selected date range without widening bars."""
+    if not is_new_listing or history.empty:
         return history
 
     attrs = history.attrs.copy()
-    first_date = pd.Timestamp(history.index[-1]).normalize()
-    index = pd.bdate_range(start=first_date, periods=sessions)
+    first_date = pd.Timestamp(history.index.min()).normalize()
+    display_sessions = len(pd.bdate_range(display_start, display_end))
+    index = pd.bdate_range(start=first_date, periods=max(display_sessions, len(history)))
     padded = history.reindex(index)
     padded.attrs.update(attrs)
     return padded

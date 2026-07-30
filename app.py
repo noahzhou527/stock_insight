@@ -14,13 +14,22 @@ from analysis import (
     calculate_rsi,
 )
 from indicator_help import render_indicator_help
-from formatters import format_amount, format_statistics, format_volume
+from formatters import (
+    format_amount,
+    format_financial_report_table,
+    format_statistics,
+    format_volume,
+)
 from market_snapshot import (
     fetch_a_share_market_snapshot,
     flatten_a_share_universe,
     rank_snapshot,
 )
-from new_listing import get_new_listing_state, pad_single_daily_bar_chart
+from new_listing import (
+    get_new_listing_state,
+    is_new_listing_history,
+    pad_new_listing_chart,
+)
 from news_fetcher import fetch_recent_financial_news
 from visualization import plot_candlestick, plot_intraday, plot_rsi, plot_macd
 from config.app_config import VALUATION_CACHE_VERSION, configure_page, get_ths_access_token
@@ -36,6 +45,7 @@ from services.market_data import (
     load_data as service_load_data,
     load_financial_reports as service_load_financial_reports,
     load_intraday as service_load_intraday,
+    load_krw_usd_rate as service_load_krw_usd_rate,
     load_us_market_cap as service_load_us_market_cap,
     load_valuation as service_load_valuation,
     trim_to_display_range as service_trim_to_display_range,
@@ -242,6 +252,34 @@ st.markdown("""
         color: var(--ink);
         letter-spacing: -0.035em;
         line-height: 1.12;
+    }
+    .compact-amount-card {
+        box-sizing: border-box;
+        min-height: 6.35rem;
+        padding: 0.85rem 1rem;
+        border: 1px solid var(--line);
+        border-radius: 0.9rem;
+        background: linear-gradient(145deg, rgba(17, 27, 44, 0.98), rgba(12, 20, 34, 0.98));
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+    }
+    .compact-amount-label {
+        color: var(--muted);
+        font-size: 0.86rem;
+        font-weight: 600;
+    }
+    .compact-amount-value {
+        color: var(--ink);
+        font-size: clamp(1.25rem, 1.7vw, 2.1rem);
+        letter-spacing: -0.035em;
+        line-height: 1.25;
+        white-space: nowrap;
+    }
+    .compact-amount-date {
+        color: var(--muted);
+        font-size: clamp(0.65rem, 0.9vw, 1rem) !important;
+        font-weight: 500;
+        letter-spacing: 0;
+        margin-left: 0.32rem;
     }
     [data-testid="stMetric"]:has([data-testid="stMetricDelta"]) > div {
         display: flex;
@@ -807,8 +845,21 @@ def refresh_intraday_data(selected_ticker: str) -> None:
             st.session_state.pop(key, None)
 
 
+def convert_krw_frame_to_usd(frame: pd.DataFrame, rate: float) -> pd.DataFrame:
+    """Convert display-only Korean price and amount fields while preserving metadata."""
+    result = frame.copy()
+    for column in ("Open", "High", "Low", "Close", "Price", "AvgPrice", "Amount"):
+        if column in result:
+            result[column] = pd.to_numeric(result[column], errors="coerce") * rate
+    result.attrs.update(frame.attrs)
+    for attr in ("pre_close",):
+        if result.attrs.get(attr) is not None:
+            result.attrs[attr] = float(result.attrs[attr]) * rate
+    return result
+
+
 @st.fragment(run_every="30s")
-def render_intraday_panel(selected_ticker, selected_market):
+def render_intraday_panel(selected_ticker, selected_market, display_market=None, currency_rate=1.0):
     session_key = f"intraday:{selected_market}:{selected_ticker}"
     manually_refreshed = st.button(
         "立即刷新",
@@ -833,6 +884,10 @@ def render_intraday_panel(selected_ticker, selected_market):
         st.info("暂时没有可显示的分时数据。")
         return
 
+    display_market = display_market or selected_market
+    if selected_market == "KR" and display_market == "US":
+        intraday = convert_krw_frame_to_usd(intraday, currency_rate)
+
     trade_date = intraday.attrs.get("trade_date", "")
     source = intraday.attrs.get("source", "同花顺")
     refresh_note = "交易时段每 30 秒自动刷新" if is_market_trading_session(selected_market) else "非交易时段显示最近数据"
@@ -846,7 +901,7 @@ def render_intraday_panel(selected_ticker, selected_market):
     st.plotly_chart(
         plot_intraday(
             intraday,
-            market=selected_market,
+            market=display_market,
             volume_metric="amount" if volume_metric_label == "成交额" else "volume",
         ),
         width="stretch",
@@ -864,6 +919,7 @@ load_valuation = service_load_valuation
 load_us_market_cap = service_load_us_market_cap
 load_financial_reports = service_load_financial_reports
 load_intraday = service_load_intraday
+load_krw_usd_rate = service_load_krw_usd_rate
 
 
 loading_message = st.empty()
@@ -891,7 +947,35 @@ try:
         st.error(f"无法获取 {ticker} 的数据，请检查股票代码是否正确。")
         st.stop()
 
+    raw_daily_close = float(pd.to_numeric(df["Close"], errors="coerce").dropna().iloc[-1])
     data_source = indicator_history_df.attrs.get("source", "Yahoo Finance")
+    live_name = indicator_history_df.attrs.get("symbol_name")
+    if market == "CN" and live_name:
+        a_share_live_names = dict(st.session_state.get("a_share_live_names", {}))
+        if a_share_live_names.get(ticker) != live_name:
+            a_share_live_names[ticker] = live_name
+            st.session_state["a_share_live_names"] = a_share_live_names
+            st.rerun()
+    display_market = market
+    krw_usd_rate = 1.0
+    if market == "KR":
+        currency_choice = st.segmented_control(
+            "韩股显示币种",
+            ["韩元", "美元"],
+            default="韩元",
+            key=f"kr-display-currency:{ticker}",
+        )
+        if currency_choice == "美元":
+            try:
+                krw_usd_rate = load_krw_usd_rate()
+            except DataFetchError as error:
+                st.warning(f"美元换算暂不可用，当前仍按韩元显示：{error}")
+            else:
+                display_market = "US"
+                indicator_history_df = convert_krw_frame_to_usd(indicator_history_df, krw_usd_rate)
+                df = convert_krw_frame_to_usd(df, krw_usd_rate)
+                st.caption(f"已切换为美元显示 · 参考汇率：1 美元 = {1 / krw_usd_rate:,.2f} 韩元")
+
     new_listing = get_new_listing_state(df, rsi_period)
     st.success(f"成功加载 {ticker} 从 {start_date} 到 {end_date} 的数据")
     if indicator_history_df.attrs.get("includes_intraday_daily_bar"):
@@ -927,6 +1011,7 @@ st.markdown("---")
 
 # 计算关键指标。A 股优先使用最新分时价，接口暂不可用时回退日线收盘价。
 latest_price = df['Close'].iloc[-1]
+intraday_currency_rate = krw_usd_rate
 has_previous_price = new_listing["previous_close"] is not None
 prev_price = new_listing["previous_close"] if has_previous_price else latest_price
 current_price_label = "当前价格"
@@ -949,6 +1034,24 @@ if market in {"CN", "US", "KR"}:
     else:
         current_price_label = "当前价格（最近收盘）"
 
+if market == "KR" and display_market == "US":
+    # Some cached Yahoo intraday snapshots are already denominated in USD while
+    # the corresponding daily bars remain in KRW.  Detect that representation
+    # from the latest daily close and never convert the same quote twice.
+    intraday_is_already_usd = (
+        intraday_snapshot is not None
+        and not intraday_snapshot.empty
+        and raw_daily_close > 0
+        and np.isclose(latest_price / raw_daily_close, krw_usd_rate, rtol=0.12)
+    )
+    if intraday_snapshot is None or intraday_snapshot.empty:
+        pass  # Daily prices and the new-listing reference were converted above.
+    elif intraday_is_already_usd:
+        intraday_currency_rate = 1.0
+    else:
+        latest_price *= krw_usd_rate
+        prev_price *= krw_usd_rate
+
 price_change = latest_price - prev_price if has_previous_price else 0.0
 price_change_pct = (price_change / prev_price) * 100 if has_previous_price and prev_price else 0.0
 
@@ -961,9 +1064,14 @@ daily_amount = (
     else pd.Series(np.nan, index=df.index)
 )
 max_daily_amount = daily_amount.max()
+max_daily_amount_date = (
+    pd.Timestamp(daily_amount.idxmax()).strftime("%Y-%m-%d")
+    if daily_amount.notna().any()
+    else ""
+)
 volatility = df['Close'].pct_change().std() * np.sqrt(252) * 100
 volatility_label = f"{volatility:.1f}%" if new_listing["volatility_ready"] and np.isfinite(volatility) else "数据不足"
-currency_symbol = "¥" if market == "CN" else "₩" if market == "KR" else "$"
+currency_symbol = "¥" if display_market == "CN" else "₩" if display_market == "KR" else "$"
 if has_previous_price:
     price_change_sign = "+" if price_change >= 0 else "-"
     price_delta_label = (
@@ -989,6 +1097,8 @@ if market == "CN":
     market_cap = valuation.get("market_cap")
 else:
     market_cap = load_us_market_cap(ticker)
+    if market == "KR" and display_market == "US" and market_cap is not None:
+        market_cap *= krw_usd_rate
 
 
 def format_market_cap(value, selected_market):
@@ -1030,6 +1140,16 @@ def data_detail_column_config(index_label: str):
         "RSI（相对强弱指标）": st.column_config.NumberColumn(width=190, alignment="right"),
     }
 
+
+def render_max_daily_amount_card(value: str, date: str):
+    st.markdown(
+        f'''<div class="compact-amount-card">
+            <div class="compact-amount-label">区间单日最大成交额</div>
+            <div class="compact-amount-value">{value}<span class="compact-amount-date">（{date}）</span></div>
+        </div>''',
+        unsafe_allow_html=True,
+    )
+
 if market == "CN":
     price_columns = st.columns(3)
     with price_columns[0]:
@@ -1051,13 +1171,13 @@ if market == "CN":
 
     secondary_columns = st.columns(4)
     with secondary_columns[0]:
-        st.metric("平均成交量", format_volume(volume_avg, market))
+        st.metric("平均成交量", format_volume(volume_avg, display_market))
     with secondary_columns[1]:
-        st.metric("区间单日最大成交额", format_amount(max_daily_amount, market))
+        render_max_daily_amount_card(format_amount(max_daily_amount, display_market), max_daily_amount_date)
     with secondary_columns[2]:
         st.metric("年化波动率", volatility_label)
     with secondary_columns[3]:
-        st.metric("总市值", format_market_cap(market_cap, market))
+        st.metric("总市值", format_market_cap(market_cap, display_market))
 
     st.markdown("#### 估值概览")
     valuation_columns = st.columns(3)
@@ -1097,13 +1217,13 @@ else:
 
     secondary_metric_columns = st.columns(4)
     with secondary_metric_columns[0]:
-        st.metric("平均成交量", format_volume(volume_avg, market))
+        st.metric("平均成交量", format_volume(volume_avg, display_market))
     with secondary_metric_columns[1]:
-        st.metric("区间单日最大成交额", format_amount(max_daily_amount, market))
+        render_max_daily_amount_card(format_amount(max_daily_amount, display_market), max_daily_amount_date)
     with secondary_metric_columns[2]:
         st.metric("年化波动率", volatility_label)
     with secondary_metric_columns[3]:
-        st.metric("总市值", format_market_cap(market_cap, market))
+        st.metric("总市值", format_market_cap(market_cap, display_market))
 
 # ============ 主内容区域 ============
 tab1, tab_intraday, tab2, tab3, tab4, tab5 = st.tabs(
@@ -1154,12 +1274,17 @@ with tab1:
     df_with_ma = trim_to_display_range(df_with_ma, start_date, end_date)
 
     # 绘制K线图
-    chart_df = pad_single_daily_bar_chart(df_with_ma)
+    chart_df = pad_new_listing_chart(
+        df_with_ma,
+        is_new_listing_history(indicator_history_df, calculation_start_date),
+        start_date,
+        end_date,
+    )
     fig = plot_candlestick(
         chart_df,
         ma_periods,
-        currency="CNY" if market == "CN" else "USD",
-        market=market,
+        currency="CNY" if display_market == "CN" else "KRW" if display_market == "KR" else "USD",
+        market=display_market,
         show_bbi=show_bbi,
         show_boll=show_boll,
         volume_metric=volume_metric,
@@ -1168,7 +1293,7 @@ with tab1:
 
 # ============ 当日分时 ============
 with tab_intraday:
-    render_intraday_panel(ticker, market)
+    render_intraday_panel(ticker, market, display_market, intraday_currency_rate)
 
 # ============ Tab 2: 技术指标 ============
 with tab2:
@@ -1224,9 +1349,9 @@ with tab3:
     display_df.index = display_df.index.strftime('%Y-%m-%d')
     display_df = display_df.round(2)
     if "Volume" in display_df:
-        display_df["Volume"] = display_df["Volume"].map(lambda value: format_volume(value, market))
+        display_df["Volume"] = display_df["Volume"].map(lambda value: format_volume(value, display_market))
     if "Amount" in display_df:
-        display_df["Amount"] = display_df["Amount"].map(lambda value: format_amount(value, market))
+        display_df["Amount"] = display_df["Amount"].map(lambda value: format_amount(value, display_market))
     display_df.index.name = "日期"
     display_df = display_df.rename(
         columns={
@@ -1258,7 +1383,7 @@ with tab3:
     # 数据统计
     st.subheader("数据统计摘要")
     st.dataframe(
-        format_statistics(df, market),
+        format_statistics(df, display_market),
         width="stretch",
         column_config=data_detail_column_config("统计项"),
     )
@@ -1331,40 +1456,40 @@ with tab4:
 # ============ Tab 5: 财务报表 ============
 with tab5:
     st.subheader("年度与季度财务报告")
-    if market != "CN":
-        st.info("财务报表视图目前用于 A股。")
-    else:
-        try:
-            financial_reports = load_financial_reports(ticker)
+    try:
+            financial_reports = load_financial_reports(ticker, market)
             annual_reports = financial_reports[
                 financial_reports["报告类型"] == "年报"
-            ]
+            ].head(4)
             quarter_reports = financial_reports[
                 financial_reports["报告类型"] != "年报"
-            ]
+            ].head(4)
 
-            st.caption("数据来源：同花顺 F10；季报指标为报告期累计口径。")
-            st.markdown("#### 上一财年年报")
+            source_note = "；季报指标为报告期累计口径。" if market == "CN" else "；金额按报告币种展示。"
+            if market == "KR" and display_market == "US":
+                source_note = f"；金额与每股收益按参考汇率换算为美元（1 美元 = {1 / krw_usd_rate:,.2f} 韩元）。"
+            st.caption(f"数据来源：{financial_reports.attrs.get('source', '—')}{source_note}")
+            st.markdown("#### 近四个财年")
             if annual_reports.empty:
-                st.info("暂未读取到上一财年年报。")
+                st.info("暂未读取到可展示的年报。")
             else:
                 st.table(
-                    annual_reports,
+                    format_financial_report_table(annual_reports, display_market, krw_usd_rate),
                     width="stretch",
                     hide_index=True,
                 )
 
-            st.markdown("#### 最新财年已披露季报")
+            st.markdown("#### 最新四个季度")
             if quarter_reports.empty:
-                st.info("最新财年尚未披露季报。")
+                st.info("暂未读取到可展示的季度报告。")
             else:
                 st.table(
-                    quarter_reports,
+                    format_financial_report_table(quarter_reports, display_market, krw_usd_rate),
                     width="stretch",
                     hide_index=True,
                 )
-        except DataFetchError as error:
-            st.warning(str(error))
+    except DataFetchError as error:
+        st.warning(str(error))
 
 # ============ 页脚 ============
 st.markdown("---")

@@ -312,7 +312,7 @@ def plot_intraday(
             name="均价",
             line=dict(color="#f39c12", width=1.5),
             connectgaps=True,
-            hovertemplate="均价: ¥%{y:.2f}<extra></extra>",
+            hovertemplate=f"均价: {currency_symbol}%{{y:.2f}}<extra></extra>",
         ),
         row=1,
         col=1,
@@ -343,7 +343,7 @@ def plot_intraday(
             textfont=dict(color=up_color, size=12),
             showlegend=False,
             hovertemplate=(
-                f"日内最高: ¥%{{y:.2f}}<br>涨跌幅: {high_pct:+.2f}%"
+                f"日内最高: {currency_symbol}%{{y:.2f}}<br>涨跌幅: {high_pct:+.2f}%"
                 "<extra></extra>"
             ),
         ),
@@ -362,7 +362,7 @@ def plot_intraday(
             textfont=dict(color=down_color, size=12),
             showlegend=False,
             hovertemplate=(
-                f"日内最低: ¥%{{y:.2f}}<br>涨跌幅: {low_pct:+.2f}%"
+                f"日内最低: {currency_symbol}%{{y:.2f}}<br>涨跌幅: {low_pct:+.2f}%"
                 "<extra></extra>"
             ),
         ),

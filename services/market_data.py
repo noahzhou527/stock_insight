@@ -14,6 +14,8 @@ from data_fetcher import (
     fetch_a_share_valuation,
     fetch_stock_data,
     fetch_us_market_cap,
+    fetch_yahoo_financial_reports,
+    fetch_krw_usd_rate,
 )
 
 
@@ -50,7 +52,7 @@ def is_market_trading_session(market: str) -> bool:
     return datetime.strptime(start, "%H:%M").time() <= now.time() <= datetime.strptime(end, "%H:%M").time()
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def load_historical_data(ticker, start, end, market, ths_access_token):
     """Load provider daily bars, which can lag the active trading session."""
     return fetch_stock_data(ticker, start, end, market=market, ths_access_token=ths_access_token)
@@ -101,7 +103,21 @@ def merge_intraday_daily_bar(
     result = result[~result.index.duplicated(keep="last")].sort_index()
     result.attrs.update(historical.attrs)
     result.attrs["includes_intraday_daily_bar"] = True
+    if intraday.attrs.get("symbol_name"):
+        result.attrs["symbol_name"] = intraday.attrs["symbol_name"]
     return result
+
+
+def historical_data_lags_intraday(historical: pd.DataFrame, intraday: pd.DataFrame) -> bool:
+    """Return whether daily history is missing at least one completed session."""
+    if historical.empty or intraday is None or intraday.empty:
+        return False
+    trade_date = intraday.attrs.get("trade_date")
+    if not trade_date:
+        return False
+    latest_daily_date = pd.Timestamp(historical.index[-1]).normalize()
+    latest_completed_date = pd.Timestamp(trade_date).normalize() - pd.offsets.BDay(1)
+    return latest_daily_date < latest_completed_date
 
 
 def load_data(ticker, start, end, market, ths_access_token):
@@ -119,6 +135,13 @@ def load_data(ticker, start, end, market, ths_access_token):
         if historical_error is not None:
             raise historical_error
         return historical
+
+    if market.upper() == "CN" and historical_data_lags_intraday(historical, intraday):
+        try:
+            load_historical_data.clear()
+            historical = load_historical_data(ticker, start, end, market, ths_access_token)
+        except DataFetchError:
+            pass
 
     result = merge_intraday_daily_bar(historical, intraday, end)
     if result.empty and historical_error is not None:
@@ -156,8 +179,15 @@ def load_us_market_cap(ticker):
 
 
 @st.cache_data(ttl=21600, show_spinner=False)
-def load_financial_reports(ticker):
-    return fetch_a_share_financial_reports(ticker)
+def load_financial_reports(ticker, market="CN"):
+    if market.upper() == "CN":
+        return fetch_a_share_financial_reports(ticker)
+    return fetch_yahoo_financial_reports(ticker)
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_krw_usd_rate():
+    return fetch_krw_usd_rate()
 
 
 @st.cache_data(ttl=25, show_spinner=False)

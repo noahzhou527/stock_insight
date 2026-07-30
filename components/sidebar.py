@@ -33,7 +33,11 @@ def render_sidebar(market: str, a_share_universe: dict) -> DashboardControls:
         industry = st.sidebar.selectbox(
             "产业链赛道", list(a_share_universe.keys()), key="a_share_industry"
         )
-        options = {f"{name} ({code})": code for name, code in a_share_universe[industry]}
+        live_names = st.session_state.get("a_share_live_names", {})
+        options = {
+            f"{live_names.get(code, name)} ({code})": code
+            for name, code in a_share_universe[industry]
+        }
         if pending_ticker in options.values():
             st.session_state["a_share_ticker"] = next(
                 label for label, code in options.items() if code == pending_ticker

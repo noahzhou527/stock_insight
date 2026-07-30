@@ -151,9 +151,30 @@ def _standardize_price_frame(df: pd.DataFrame) -> pd.DataFrame:
     df = df[retained_columns].sort_index()
     for column in REQUIRED_PRICE_COLUMNS:
         df[column] = pd.to_numeric(df[column], errors="coerce")
+    # Yahoo daily history for some exchanges (notably KRX) omits turnover.
+    # Use close × volume as a consistent daily estimate, while preserving every
+    # non-null amount supplied by the provider.
+    estimated_amount = df["Close"] * df["Volume"]
     if "Amount" in df.columns:
-        df["Amount"] = pd.to_numeric(df["Amount"], errors="coerce")
+        df["Amount"] = pd.to_numeric(df["Amount"], errors="coerce").fillna(estimated_amount)
+    else:
+        df["Amount"] = estimated_amount
     return df.dropna(subset=["Open", "High", "Low", "Close"])
+
+
+def _filter_suspicious_korean_daily_bars(df: pd.DataFrame) -> pd.DataFrame:
+    """Drop implausible KRX placeholder rows returned by the historical feed."""
+    if df.empty or "Volume" not in df:
+        return df
+    volume = pd.to_numeric(df["Volume"], errors="coerce")
+    nearby_volume = volume.rolling(window=5, center=True, min_periods=2).median()
+    suspicious = (nearby_volume >= 1_000_000) & (volume > 0) & (volume < nearby_volume / 1_000)
+    if not suspicious.any():
+        return df
+    result = df.loc[~suspicious].copy()
+    result.attrs.update(df.attrs)
+    result.attrs["filtered_suspicious_daily_bars"] = int(suspicious.sum())
+    return result
 
 
 def _filter_date_range(df: pd.DataFrame, start_date, end_date) -> pd.DataFrame:
@@ -375,27 +396,30 @@ def fetch_a_share_data(
         return _fetch_a_share_ifind_data(ticker, start, end, access_token)
 
     frames = []
-    try:
-        for year in range(start.year, end.year + 1):
+    errors = []
+    for year in range(start.year, end.year + 1):
+        try:
             frame = _fetch_a_share_year(ticker, year)
             if not frame.empty:
                 frames.append(frame)
-    except Exception as error:
+        except Exception as error:
+            errors.append(error)
+
+    if not frames:
         cached = _load_local_cache(ticker, start, end)
         if not cached.empty:
             cached.attrs["source"] = "同花顺本地缓存"
             return cached
+        if not errors:
+            raise DataFetchError(
+                "ths_empty_data",
+                "同花顺未返回该股票在所选日期范围内的行情。",
+            )
         raise DataFetchError(
             "ths_request_failed",
             "无法从同花顺获取该 A 股的历史行情，请稍后重试。",
-            error,
-        ) from error
-
-    if not frames:
-        raise DataFetchError(
-            "ths_empty_data",
-            "同花顺未返回该股票在所选日期范围内的行情。",
-        )
+            errors[0] if errors else None,
+        ) from (errors[0] if errors else None)
 
     df = pd.concat(frames)
     df = df[~df.index.duplicated(keep="last")].sort_index()
@@ -584,6 +608,105 @@ def fetch_a_share_financial_reports(ticker: str) -> pd.DataFrame:
     )
     result.attrs["source"] = "同花顺 F10"
     return result
+
+
+def _parse_yahoo_financial_timeseries(payload: dict) -> pd.DataFrame:
+    metric_labels = {
+        "TotalRevenue": "营业总收入",
+        "GrossProfit": "毛利润",
+        "OperatingIncome": "营业利润",
+        "NetIncome": "净利润",
+        "BasicEPS": "基本每股收益",
+    }
+    reports: dict[tuple[str, str], dict] = {}
+    for series in payload.get("timeseries", {}).get("result", []):
+        types = series.get("meta", {}).get("type", [])
+        if not types:
+            continue
+        series_type = str(types[0])
+        report_type = "年报" if series_type.startswith("annual") else "季报"
+        metric = metric_labels.get(
+            series_type.removeprefix("annual").removeprefix("quarterly")
+        )
+        if metric is None:
+            continue
+        for item in series.get(series_type, []):
+            period = item.get("asOfDate")
+            raw = item.get("reportedValue", {}).get("raw")
+            value = pd.to_numeric(raw, errors="coerce")
+            if not period or pd.isna(value):
+                continue
+            report = reports.setdefault(
+                (period, report_type), {"报告期": period, "报告类型": report_type}
+            )
+            report[metric] = float(value)
+
+    result = pd.DataFrame(reports.values())
+    if result.empty:
+        return result
+    columns = ["报告期", "报告类型", *metric_labels.values()]
+    return result.reindex(columns=columns).sort_values("报告期", ascending=False).reset_index(drop=True)
+
+
+def fetch_yahoo_financial_reports(ticker: str) -> pd.DataFrame:
+    """Load annual and quarterly income statements for US and Korean equities."""
+    metric_types = (
+        "annualTotalRevenue,annualGrossProfit,annualOperatingIncome,annualNetIncome,annualBasicEPS,"
+        "quarterlyTotalRevenue,quarterlyGrossProfit,quarterlyOperatingIncome,quarterlyNetIncome,quarterlyBasicEPS"
+    )
+    try:
+        response = _create_yahoo_session().get(
+            f"https://query2.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/{ticker}",
+            params={
+                "symbol": ticker,
+                "type": metric_types,
+                "period1": "1577836800",
+                "period2": "1924992000",
+            },
+            timeout=20,
+        )
+        response.raise_for_status()
+        result = _parse_yahoo_financial_timeseries(response.json())
+    except Exception as error:
+        raise DataFetchError(
+            "yahoo_financials_failed",
+            "无法从 Yahoo Finance 获取财务报表，请稍后重试。",
+            error,
+        ) from error
+
+    if result.empty:
+        raise DataFetchError(
+            "yahoo_financials_empty",
+            "Yahoo Finance 暂未提供该股票的年度或季度财务报表。",
+        )
+    result.attrs["source"] = "Yahoo Finance"
+    return result
+
+
+def fetch_krw_usd_rate() -> float:
+    """Return the latest USD value of one Korean won from Yahoo Finance."""
+    try:
+        response = _create_yahoo_session().get(
+            "https://query1.finance.yahoo.com/v8/finance/chart/KRW=X",
+            params={"range": "5d", "interval": "1d"},
+            timeout=20,
+        )
+        response.raise_for_status()
+        closes = response.json()["chart"]["result"][0]["indicators"]["quote"][0]["close"]
+        krw_per_usd = next(
+            (float(value) for value in reversed(closes) if value is not None and float(value) > 0),
+            None,
+        )
+    except Exception as error:
+        raise DataFetchError(
+            "krw_usd_rate_failed",
+            "无法获取韩元兑美元汇率，请切回韩元显示后重试。",
+            error,
+        ) from error
+
+    if krw_per_usd is None:
+        raise DataFetchError("krw_usd_rate_empty", "Yahoo Finance 未返回可用的韩元兑美元汇率。")
+    return 1 / krw_per_usd
 
 
 def _decode_ths_page(response) -> str:
@@ -889,6 +1012,7 @@ def fetch_a_share_intraday(ticker: str) -> pd.DataFrame:
         {
             "pre_close": pre_close,
             "trade_date": trade_date,
+            "symbol_name": str(quote.get("name", "")).strip(),
             "source": "同花顺公开分时",
         }
     )
@@ -1027,6 +1151,8 @@ def fetch_stock_data(
                 "empty_data",
                 "Yahoo Finance returned no rows for this ticker and date range.",
             )
+        if market.upper() == "KR":
+            df = _filter_suspicious_korean_daily_bars(df)
         _save_local_cache(ticker, df)
         return df
 
@@ -1035,6 +1161,8 @@ def fetch_stock_data(
     except Exception as fallback_error:
         cached = _load_local_cache(ticker, start_date, end_date)
         if not cached.empty:
+            if market.upper() == "KR":
+                cached = _filter_suspicious_korean_daily_bars(cached)
             cached.attrs["fallback_reason"] = yahoo_error.category
             return cached
 

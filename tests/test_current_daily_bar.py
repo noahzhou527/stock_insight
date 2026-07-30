@@ -2,7 +2,7 @@ import unittest
 
 import pandas as pd
 
-from services.market_data import merge_intraday_daily_bar
+from services.market_data import historical_data_lags_intraday, merge_intraday_daily_bar
 
 
 class CurrentDailyBarTests(unittest.TestCase):
@@ -26,6 +26,7 @@ class CurrentDailyBarTests(unittest.TestCase):
             index=pd.to_datetime(["2026-07-27 09:30", "2026-07-27 10:00", "2026-07-27 10:30"]),
         )
         intraday.attrs["trade_date"] = "2026-07-27"
+        intraday.attrs["symbol_name"] = "C长鑫"
 
         result = merge_intraday_daily_bar(historical, intraday, "2026-07-27")
 
@@ -37,6 +38,16 @@ class CurrentDailyBarTests(unittest.TestCase):
         self.assertEqual(result.iloc[-1]["Volume"], 60.0)
         self.assertEqual(result.iloc[-1]["Amount"], 1270.0)
         self.assertTrue(result.attrs["includes_intraday_daily_bar"])
+        self.assertEqual(result.attrs["symbol_name"], "C长鑫")
+
+    def test_history_refreshes_when_it_misses_a_completed_session(self):
+        historical = pd.DataFrame(
+            {"Close": [49.0]}, index=pd.to_datetime(["2026-07-27"])
+        )
+        intraday = pd.DataFrame({"Price": [52.87]})
+        intraday.attrs["trade_date"] = "2026-07-30"
+
+        self.assertTrue(historical_data_lags_intraday(historical, intraday))
 
     def test_replaces_a_stale_same_day_daily_bar(self):
         historical = pd.DataFrame(

@@ -42,6 +42,31 @@ def format_amount(value, market: str = "CN") -> str:
     return _compact(value, ((1e12, "T美元"), (1e9, "B美元"), (1e6, "M美元"), (1e3, "K美元")), "美元")
 
 
+def format_financial_report_table(
+    frame: pd.DataFrame,
+    market: str,
+    currency_multiplier: float = 1.0,
+) -> pd.DataFrame:
+    """Apply readable currency units to Yahoo financial-statement amounts."""
+    if market.upper() == "CN":
+        return frame
+    result = frame.copy()
+    for column in ("营业总收入", "毛利润", "营业利润", "净利润"):
+        if column in result:
+            result[column] = result[column].map(
+                lambda value: format_amount(_number(value) * currency_multiplier, market)
+                if _number(value) is not None
+                else "—"
+            )
+    if "基本每股收益" in result:
+        result["基本每股收益"] = result["基本每股收益"].map(
+            lambda value: "—" if _number(value) is None else f"{float(value) * currency_multiplier:.2f}"
+        )
+        if market.upper() == "US" and currency_multiplier != 1:
+            result = result.rename(columns={"基本每股收益": "基本每股收益（美元）"})
+    return result
+
+
 def chart_unit(metric: str, market: str = "CN") -> tuple[float, str]:
     """Return the scale and label used by a chart axis for a large-value metric."""
     market = market.upper()

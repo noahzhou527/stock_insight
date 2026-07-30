@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 
-from data_fetcher import _standardize_price_frame
+from data_fetcher import _filter_suspicious_korean_daily_bars, _standardize_price_frame
 from services import market_overview_data as overview
 
 
@@ -45,6 +45,26 @@ class MarketOverviewDataTests(unittest.TestCase):
         )
         self.assertIn("Amount", frame.columns)
         self.assertEqual(frame.iloc[0]["Amount"], 150)
+
+    def test_price_standardization_estimates_missing_daily_amount(self):
+        frame = _standardize_price_frame(
+            pd.DataFrame(
+                [{"Date": "2026-07-10", "Open": 1, "High": 2, "Low": 0.5, "Close": 1.5, "Volume": 100}]
+            )
+        )
+
+        self.assertEqual(frame.iloc[0]["Amount"], 150)
+
+    def test_korean_history_drops_an_implausible_placeholder_volume(self):
+        frame = pd.DataFrame(
+            {"Volume": [30_000_000, 31_000_000, 1_191, 29_000_000, 32_000_000]},
+            index=pd.date_range("2026-06-08", periods=5, freq="D"),
+        )
+
+        filtered = _filter_suspicious_korean_daily_bars(frame)
+
+        self.assertNotIn(pd.Timestamp("2026-06-10"), filtered.index)
+        self.assertEqual(filtered.attrs["filtered_suspicious_daily_bars"], 1)
 
     @patch("services.market_overview_data._ths_intraday")
     @patch("services.market_overview_data._ths_daily")
