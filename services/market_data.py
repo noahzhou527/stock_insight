@@ -72,6 +72,10 @@ def _intraday_daily_bar(intraday: pd.DataFrame) -> pd.DataFrame:
     raw_volume = intraday["Volume"] if "Volume" in intraday else pd.Series(0.0, index=intraday.index)
     volume = pd.to_numeric(raw_volume, errors="coerce").fillna(0)
     if "Amount" in intraday:
+        # This is a provisional sum of minute-level turnover. Provider update
+        # timing and precision can make it differ slightly from the finalized
+        # daily value; after-hours turnover is already provider-supplied and
+        # must not be added again.
         amount = pd.to_numeric(intraday["Amount"], errors="coerce").fillna(0)
     else:
         amount = prices.reindex(intraday.index).fillna(0) * volume

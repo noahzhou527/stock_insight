@@ -243,6 +243,62 @@ def plot_candlestick(
             col=1,
         )
 
+    high_prices = pd.to_numeric(df["High"], errors="coerce")
+    low_prices = pd.to_numeric(df["Low"], errors="coerce")
+    price_axis_range = None
+    if high_prices.notna().any() and low_prices.notna().any():
+        overlay_columns = ["High", "Low"]
+        if ma_periods:
+            overlay_columns.extend(f"MA_{period}" for period in ma_periods if f"MA_{period}" in df.columns)
+        if show_boll:
+            overlay_columns.extend(
+                column for column in ("BB_Upper", "BB_Middle", "BB_Lower") if column in df.columns
+            )
+        if show_bbi and "BBI" in df.columns:
+            overlay_columns.append("BBI")
+        plotted_prices = pd.concat(
+            [pd.to_numeric(df[column], errors="coerce") for column in overlay_columns],
+            ignore_index=True,
+        ).dropna()
+        price_floor, price_ceiling = float(plotted_prices.min()), float(plotted_prices.max())
+        price_span = max(price_ceiling - price_floor, max(abs(price_ceiling), 1.0) * 0.02)
+        label_padding = price_span * 0.075
+        price_axis_range = [price_floor - label_padding, price_ceiling + label_padding]
+
+        high_date, low_date = high_prices.idxmax(), low_prices.idxmin()
+        extrema = (
+            ("最高", high_date, float(high_prices.loc[high_date]), price_ceiling + label_padding * 0.55),
+            ("最低", low_date, float(low_prices.loc[low_date]), price_floor - label_padding * 0.55),
+        )
+        inward_steps = max(1, min(8, len(df) // 20))
+        for label, date, price, label_y in extrema:
+            date_position = df.index.get_indexer([date])[0]
+            label_position = (
+                min(date_position + inward_steps, len(df) - 1)
+                if date_position < len(df) / 2
+                else max(date_position - inward_steps, 0)
+            )
+            fig.add_annotation(
+                x=date,
+                y=price,
+                ax=df.index[label_position],
+                ay=label_y,
+                xref="x",
+                yref="y",
+                axref="x",
+                ayref="y",
+                text=f"<b>{label}</b> {price:,.2f}",
+                showarrow=True,
+                arrowhead=0,
+                arrowwidth=1.15,
+                arrowcolor="#f8fafc",
+                bgcolor="rgba(7, 11, 20, 0.84)",
+                bordercolor="rgba(226, 232, 240, 0.42)",
+                borderwidth=1,
+                borderpad=4,
+                font=dict(color="#f8fafc", size=12),
+            )
+
     fig.add_trace(
         go.Bar(
             x=df.index,
@@ -294,6 +350,7 @@ def plot_candlestick(
         col=1,
         gridcolor=GRID_COLOR,
         tickformat=".2f",
+        range=price_axis_range,
     )
     fig.update_yaxes(
         title_text=volume_label,

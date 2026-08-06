@@ -530,6 +530,36 @@ st.markdown("""
         line-height: 1.45;
         text-align: right;
     }
+    .settlement-note-right {
+        margin: -0.2rem 0 0.35rem;
+        color: #71839b;
+        font-size: 0.78rem;
+        line-height: 1.5;
+        text-align: right;
+    }
+    @keyframes dismiss-load-success {
+        0%, 56% {
+            display: block;
+            max-height: 5rem;
+            opacity: 1;
+            transform: translateY(0);
+        }
+        99% {
+            display: block;
+            max-height: 0;
+            opacity: 0;
+            transform: translateY(-0.35rem);
+        }
+        100% {
+            display: none;
+            max-height: 0;
+            opacity: 0;
+        }
+    }
+    .st-key-data_load_success {
+        overflow: hidden;
+        animation: dismiss-load-success 4.5s ease forwards;
+    }
     .stButton > button {
         border-radius: 0.7rem;
         border-color: var(--line-strong);
@@ -769,7 +799,8 @@ st.markdown("""
         .compact-amount-card {
             min-height: 6.4rem;
         }
-        .valuation-note-right {
+        .valuation-note-right,
+        .settlement-note-right {
             text-align: left;
         }
         .pe-formula-grid {
@@ -781,6 +812,12 @@ st.markdown("""
         }
         .pe-formula-card {
             min-height: 7.5rem;
+        }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .st-key-data_load_success {
+            animation-duration: 0.01ms;
+            animation-delay: 3s;
         }
     }
 </style>
@@ -990,9 +1027,16 @@ try:
                 st.caption(f"已切换为美元显示 · 参考汇率：1 美元 = {1 / krw_usd_rate:,.2f} 韩元")
 
     new_listing = get_new_listing_state(df, rsi_period)
-    st.success(f"成功加载 {ticker} 从 {start_date} 到 {end_date} 的数据")
+    with st.container(key="data_load_success"):
+        st.success(f"成功加载 {ticker} 从 {start_date} 到 {end_date} 的数据")
     if indicator_history_df.attrs.get("includes_intraday_daily_bar"):
-        st.caption("日 K 已包含当日分时合成的实时 K 线；收盘后数据源完成结算时会以正式日线为准。")
+        st.markdown(
+            '<div class="settlement-note-right">'
+            '当日成交额由分时明细合成，可能因行情更新时点、精度与正式结算值略有偏差；'
+            '盘后成交不重复累加，下一交易日以正式日线校准。'
+            '</div>',
+            unsafe_allow_html=True,
+        )
     if data_source in {"同花顺", "同花顺 iFinD"}:
         st.caption("数据来源：同花顺")
     elif data_source == "同花顺本地缓存":
