@@ -179,7 +179,8 @@ def load_us_market_cap(ticker):
 
 
 @st.cache_data(ttl=21600, show_spinner=False)
-def load_financial_reports(ticker, market="CN"):
+def load_financial_reports(ticker, market="CN", cache_version=2):
+    """Load financial reports, with a versioned cache for parser upgrades."""
     if market.upper() == "CN":
         return fetch_a_share_financial_reports(ticker)
     return fetch_yahoo_financial_reports(ticker)

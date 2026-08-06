@@ -17,10 +17,12 @@ from data_fetcher import DataFetchError, _clear_broken_local_proxy, _create_yaho
 EASTMONEY_CLIST_URL = "https://push2.eastmoney.com/api/qt/clist/get"
 EASTMONEY_KLINE_URL = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
 EASTMONEY_TRENDS_URL = "https://push2.eastmoney.com/api/qt/stock/trends2/get"
+EASTMONEY_QUOTE_URL = "https://push2.eastmoney.com/api/qt/stock/get"
 CHINA_TZ = ZoneInfo("Asia/Shanghai")
 US_TZ = ZoneInfo("America/New_York")
 CN_BREADTH_PAGE_SIZE = 1_000
 CN_BREADTH_RETRIES = 3
+CN_BREADTH_MINIMUM = 3_000
 _LAST_CN_MARKET_BREADTH: dict | None = None
 
 
@@ -209,6 +211,37 @@ def fetch_us_index(index_config: dict) -> dict:
     return {**index_config, "price": price, "previous_close": previous_close, "change": price - previous_close, "change_pct": (price / previous_close - 1) * 100 if previous_close else None, "amount": None, "previous_amount": None, "amount_change": None, "amount_change_pct": None, "trade_date": str(trade_date), "source": "Yahoo Finance", "intraday": intraday}
 
 
+def _fetch_cn_index_breadth(secid: str, session=None) -> dict | None:
+    """Read an index's constituent up/flat/down counts from its quote payload."""
+    owns_session = session is None
+    session = session or requests.Session(impersonate="chrome", trust_env=False)
+    try:
+        for attempt in range(CN_BREADTH_RETRIES):
+            try:
+                response = session.get(
+                    EASTMONEY_QUOTE_URL,
+                    params={"secid": secid, "fields": "f113,f114,f115"},
+                    timeout=12,
+                )
+                response.raise_for_status()
+                data = response.json().get("data") or {}
+                values = {
+                    "up": pd.to_numeric(data.get("f113"), errors="coerce"),
+                    "down": pd.to_numeric(data.get("f114"), errors="coerce"),
+                    "flat": pd.to_numeric(data.get("f115"), errors="coerce"),
+                }
+                if any(pd.isna(value) for value in values.values()):
+                    return None
+                return {key: int(value) for key, value in values.items()}
+            except Exception:
+                if attempt < CN_BREADTH_RETRIES - 1:
+                    time.sleep(0.15 * (attempt + 1))
+        return None
+    finally:
+        if owns_session:
+            session.close()
+
+
 def fetch_market_indices(market: str) -> list[dict]:
     configs_by_market = {
         "CN": CN_INDEX_CONFIG,
@@ -218,11 +251,21 @@ def fetch_market_indices(market: str) -> list[dict]:
     configs = configs_by_market[market]
     fetcher = fetch_cn_index if market == "CN" else fetch_us_index
     results = []
-    for config in configs:
-        try:
-            results.append(fetcher(config))
-        except DataFetchError as error:
-            results.append({**config, "error": str(error)})
+    breadth_session = requests.Session(impersonate="chrome", trust_env=False) if market == "CN" else None
+    try:
+        for config in configs:
+            try:
+                item = fetcher(config)
+                if breadth_session is not None and config.get("eastmoney_secid"):
+                    item["constituent_breadth"] = _fetch_cn_index_breadth(
+                        config["eastmoney_secid"], breadth_session
+                    )
+                results.append(item)
+            except DataFetchError as error:
+                results.append({**config, "error": str(error)})
+    finally:
+        if breadth_session is not None:
+            breadth_session.close()
     return results
 
 
@@ -257,27 +300,6 @@ def _fetch_cn_breadth_page(session, fs: str, page: int) -> tuple[list[dict], int
     raise last_error
 
 
-def _cached_a_share_universe_breadth() -> dict | None:
-    """Return the locally cached stock-pool breadth without making a request."""
-    from market_snapshot import _load_snapshot_cache
-
-    snapshot = _load_snapshot_cache()
-    if snapshot.empty or "change_pct" not in snapshot:
-        return None
-    changes = pd.to_numeric(snapshot["change_pct"], errors="coerce").dropna()
-    if changes.empty:
-        return None
-    return {
-        "up": int((changes > 0).sum()),
-        "down": int((changes < 0).sum()),
-        "flat": int((changes == 0).sum()),
-        "total": int(len(changes)),
-        "source": "A 股股票池本地快照（非全市场）",
-        "stale": True,
-        "fallback": "watchlist",
-    }
-
-
 def fetch_cn_market_breadth() -> dict:
     global _LAST_CN_MARKET_BREADTH
 
@@ -297,7 +319,7 @@ def fetch_cn_market_breadth() -> dict:
                 if page * CN_BREADTH_PAGE_SIZE >= total:
                     break
                 page += 1
-        if not changes:
+        if len(changes) < CN_BREADTH_MINIMUM:
             raise ValueError("东方财富未返回任何 A 股涨跌幅数据")
     except Exception as error:
         if _LAST_CN_MARKET_BREADTH is not None:
@@ -306,9 +328,6 @@ def fetch_cn_market_breadth() -> dict:
                 "source": f"{_LAST_CN_MARKET_BREADTH['source']} · 上次成功快照",
                 "stale": True,
             }
-        cached_breadth = _cached_a_share_universe_breadth()
-        if cached_breadth is not None:
-            return cached_breadth
         raise DataFetchError("eastmoney_breadth_failed", "东方财富全 A 股涨跌家数暂时不可用。", error) from error
     finally:
         session.close()

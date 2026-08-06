@@ -6,15 +6,19 @@ import importlib
 import pandas as pd
 import streamlit as st
 import visualization
+import services.market_overview_data as market_overview_data
 
 from config.app_config import configure_page
+from financial_rankings import fetch_latest_quarter_net_profit_ranking
 from market_snapshot import fetch_a_share_market_snapshot, flatten_a_share_universe, rank_snapshot
 from news_fetcher import fetch_recent_financial_news
 from services.market_data import is_a_share_trading_session
-from services.market_overview_data import fetch_market_breadth, fetch_market_indices
 # Streamlit caches imported helper modules across page reruns. Reload the chart
 # module so this standalone page always uses the current index-chart renderer.
 visualization = importlib.reload(visualization)
+market_overview_data = importlib.reload(market_overview_data)
+fetch_market_breadth = market_overview_data.fetch_market_breadth
+fetch_market_indices = market_overview_data.fetch_market_indices
 
 
 RANKING_CONFIG = {
@@ -24,12 +28,17 @@ RANKING_CONFIG = {
     "pe_ttm": ("市盈率榜", "PE TTM", 1.0, "%.2f"),
 }
 
-MARKET_OVERVIEW_CACHE_VERSION = 2
+MARKET_OVERVIEW_CACHE_VERSION = 4
 
 
 @st.cache_data(ttl=25, show_spinner=False)
 def load_a_share_market_snapshot(a_share_universe):
     return fetch_a_share_market_snapshot(flatten_a_share_universe(a_share_universe))
+
+
+@st.cache_data(ttl=21600, show_spinner=False)
+def load_a_share_latest_quarter_profit_ranking(a_share_universe, cache_version=1):
+    return fetch_latest_quarter_net_profit_ranking(flatten_a_share_universe(a_share_universe))
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -38,7 +47,7 @@ def load_recent_financial_news(hours=72):
 
 
 @st.cache_data(ttl=30, show_spinner=False)
-def load_cn_market_overview():
+def load_cn_market_overview(cache_version=MARKET_OVERVIEW_CACHE_VERSION):
     indices = fetch_market_indices("CN")
     try:
         breadth = fetch_market_breadth("CN")
@@ -93,12 +102,31 @@ def _index_card_html(item: dict, market: str) -> str:
         amount_delta = "暂不可用"
     else:
         amount_delta = "不使用 ETF 成交额代理"
+    constituent = item.get("constituent_breadth")
+    breadth_detail = (
+        f'涨 <span class="constituent-up">{constituent["up"]}</span> '
+        f'平 {constituent["flat"]} '
+        f'跌 <span class="constituent-down">{constituent["down"]}</span>'
+        if constituent else "暂不可用"
+    )
+    breadth_summary = (
+        '<div class="index-breadth-summary">'
+        '<small>成分股涨跌</small>'
+        f'<b>{breadth_detail}</b>'
+        '</div>'
+        if market == "CN" else ""
+    )
 
     return (
         f'<div class="index-card {direction_class}">'
         f'<div class="index-card-head"><strong>{name}</strong><span>{code}</span></div>'
+        '<div class="index-quote-row">'
+        '<div class="index-quote-left">'
         f'<div class="index-price">{item["price"]:,.2f}</div>'
         f'<div class="index-change">{arrow} {item["change"]:+.2f}&nbsp;&nbsp;{item["change_pct"]:+.2f}%</div>'
+        '</div>'
+        f'{breadth_summary}'
+        '</div>'
         '<div class="index-details">'
         f'<div><small>成交额</small><b>{amount_label}</b></div>'
         f'<div><small>较上一交易日</small><b>{amount_delta}</b></div>'
@@ -158,7 +186,7 @@ def render_market_overview(market: str) -> None:
     loader = load_cn_market_overview if market == "CN" else load_us_market_overview if market == "US" else load_kr_market_overview
     try:
         with st.spinner(f"正在更新{market_name}指数数据..."):
-            loaded = loader()
+            loaded = loader(MARKET_OVERVIEW_CACHE_VERSION) if market == "CN" else loader()
             indices, breadth = loaded if market in {"CN", "US"} else (loaded, None)
     except Exception as error:
         indices, breadth = [], None if market == "KR" else {"error": f"市场广度暂时不可用：{error}"}
@@ -224,12 +252,17 @@ def render_market_overview_page() -> None:
         .index-card-head { display:flex; justify-content:space-between; align-items:center; gap:.8rem; }
         .index-card-head strong { color:var(--ink); font-size:1.08rem; }
         .index-card-head span { padding:.2rem .48rem; color:#67e8f9; background:rgba(34,211,238,.08); border:1px solid rgba(34,211,238,.18); border-radius:.42rem; font:600 .74rem ui-monospace,monospace; }
-        .index-price { margin:.85rem 0 .15rem; color:var(--ink); font-size:2rem; font-weight:680; letter-spacing:-.045em; }
+        .index-quote-row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; gap:1rem; margin:.85rem 0 1rem; }
+        .index-price { margin:0 0 .15rem; color:var(--ink); font-size:2rem; font-weight:680; letter-spacing:-.045em; }
         .index-change { display:inline-flex; padding:.25rem .55rem; color:var(--accent); background:color-mix(in srgb,var(--accent) 12%,transparent); border-radius:999px; font-size:.82rem; font-weight:700; }
-        .index-details { display:grid; grid-template-columns:1fr 1fr; gap:.65rem; margin:1rem 0; }
+        .index-breadth-summary { min-width:9.6rem; padding:0 0 .2rem; text-align:right; }
+        .index-breadth-summary small { display:block; margin-bottom:.3rem; color:var(--muted); font-size:.69rem; }
+        .index-breadth-summary b { display:block; color:#cdd9e8; font-size:.82rem; font-weight:700; white-space:nowrap; }
+        .index-details { display:grid; grid-template-columns:1fr 1fr; gap:.65rem; margin:0 0 1rem; }
         .index-details div { padding:.65rem .72rem; border:1px solid rgba(34,49,73,.78); border-radius:.68rem; background:rgba(6,12,22,.42); }
         .index-details small { display:block; color:var(--muted); font-size:.69rem; margin-bottom:.22rem; }
         .index-details b { display:block; overflow:hidden; color:#cdd9e8; font-size:.78rem; font-weight:650; text-overflow:ellipsis; white-space:nowrap; }
+        .constituent-up { color:#fb7185; } .constituent-down { color:#2dd4bf; }
         .index-meta { display:flex; gap:.4rem; position:absolute; left:1.25rem; right:1.25rem; bottom:1rem; color:#6f8098; font-size:.7rem; }
         .index-card-error { min-height:8rem; } .index-error { color:#fb7185; margin-top:1.2rem; font-size:.82rem; }
         .breadth-panel { padding:1.1rem 1.2rem; border:1px solid var(--line); border-radius:1rem; background:linear-gradient(145deg,rgba(17,29,48,.95),rgba(10,18,31,.98)); }
@@ -248,8 +281,8 @@ def render_market_overview_page() -> None:
         [data-testid="stPlotlyChart"] { overflow:hidden; border:1px solid var(--line); border-radius:1rem; box-shadow:0 16px 42px rgba(0,0,0,.18); }
         div[data-testid="stSegmentedControl"] [data-baseweb="button-group"] { padding:.25rem; background:#0b1423; border:1px solid var(--line); border-radius:.8rem; }
         .stButton>button { margin-top:.55rem; border-color:var(--line); border-radius:.7rem; background:var(--surface); color:#dbe8f7; }
-        @media(max-width:1000px){ .index-grid{grid-template-columns:repeat(2,minmax(0,1fr));} }
-        @media(max-width:680px){ .index-grid,.breadth-summary{grid-template-columns:1fr;} .breadth-stat{border-right:0;border-bottom:1px solid var(--line);} .index-details{grid-template-columns:1fr;} }
+        @media(max-width:1350px){ .index-grid{grid-template-columns:repeat(2,minmax(0,1fr));} }
+        @media(max-width:680px){ .index-grid,.breadth-summary{grid-template-columns:1fr;} .breadth-stat{border-right:0;border-bottom:1px solid var(--line);} .index-details{grid-template-columns:1fr;} .index-quote-row{grid-template-columns:1fr;} .index-breadth-summary{text-align:left;} }
         </style>
         """,
         unsafe_allow_html=True,
@@ -382,6 +415,29 @@ def _render_ranking_table(snapshot, metric):
     st.caption(f"{title}覆盖股票池全部 {len(display)} 只股票。")
 
 
+def _render_financial_ranking_table(financial_ranking):
+    """Render the financial ranking with the same card-style rows as live rankings."""
+    headers = ["排名", "股票", "赛道", "报告期", "最新季度净利润（亿元）", "净利润同比"]
+    widths = [0.65, 1.25, 1.2, 1.2, 1.55, 1.15]
+    with st.container(height=560, border=True, key="a-share-ranking-table-quarter-profit"):
+        for column, label in zip(st.columns(widths, gap="small"), headers):
+            column.markdown(f"**{label}**")
+        for row in financial_ranking.itertuples(index=False):
+            columns = st.columns(widths, gap="small")
+            columns[0].markdown(str(row.排名))
+            if columns[1].button(str(row.name), key=f"a-share-ranking-quarter-profit:{row.ticker}", type="tertiary"):
+                st.session_state["pending_a_share_ticker"] = str(row.ticker)
+                st.session_state["market_view_navigation"] = "个股分析"
+                st.rerun(scope="app")
+            columns[2].markdown(str(row.industry))
+            columns[3].markdown(str(row.报告期 or "—"))
+            profit = pd.to_numeric(row.最新季度净利润, errors="coerce")
+            growth = pd.to_numeric(row.净利润同比, errors="coerce")
+            columns[4].markdown("—" if pd.isna(profit) else f"{profit / 1e8:.2f}")
+            color = "#e53935" if growth >= 0 else "#1e9d55"
+            columns[5].markdown("—" if pd.isna(growth) else f"<span style='color:{color}'>{growth:+.2f}%</span>", unsafe_allow_html=True)
+
+
 @st.fragment(run_every="30s" if is_a_share_trading_session() else None)
 def render_a_share_rankings(a_share_universe):
     header, action = st.columns([5, 1])
@@ -404,10 +460,15 @@ def render_a_share_rankings(a_share_universe):
     latest = str(quote_times.dropna().max()) if quote_times is not None and quote_times.notna().any() else ""
     stale_count = int(snapshot.get("stale", pd.Series(False, index=snapshot.index)).fillna(False).sum())
     st.caption(f"数据来源：东方财富 · {'交易时段每 30 秒刷新' if is_a_share_trading_session() else '非交易时段停止自动刷新'}{f' · 数据时间 {latest}' if latest else ''}{f' · {stale_count} 只使用缓存' if stale_count else ''}")
-    tabs = st.tabs([config[0] for config in RANKING_CONFIG.values()])
+    tabs = st.tabs([*[config[0] for config in RANKING_CONFIG.values()], "最新季度净利润"])
     for tab, metric in zip(tabs, RANKING_CONFIG):
         with tab:
             _render_ranking_table(snapshot, metric)
+    with tabs[-1]:
+        with st.spinner("正在读取最新季度财报（优先使用本地缓存）..."):
+            financial_ranking = load_a_share_latest_quarter_profit_ranking(a_share_universe)
+        _render_financial_ranking_table(financial_ranking)
+        st.caption("财报缓存 12 小时内复用；连续 30 天未访问的财报缓存会自动删除。")
 
 
 def _format_news_time(value):

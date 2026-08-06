@@ -6,6 +6,7 @@
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
+import re
 
 from formatters import chart_unit, format_amount, format_volume
 
@@ -51,6 +52,67 @@ def _apply_dark_theme(fig: go.Figure) -> go.Figure:
         zerolinecolor="#26384f",
     )
     return fig
+
+
+def _financial_amount_to_number(value) -> float | None:
+    """Convert F10 financial amounts such as ``382.40亿`` into yuan."""
+    if value is None or pd.isna(value):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    match = re.fullmatch(r"\s*(-?[\d,.]+)\s*(万亿|亿|万|元)?\s*", str(value))
+    if not match:
+        return None
+    try:
+        number = float(match.group(1).replace(",", ""))
+    except ValueError:
+        return None
+    multiplier = {"万亿": 1e12, "亿": 1e8, "万": 1e4, "元": 1.0, None: 1.0}[match.group(2)]
+    return number * multiplier
+
+
+def plot_financial_report_bars(
+    reports: pd.DataFrame,
+    title: str,
+    unit_scale: float = 1e8,
+    unit_label: str = "亿元",
+) -> go.Figure:
+    """Plot revenue and net-profit changes across a small set of report periods."""
+    columns = ["报告期", "营业总收入", "净利润"]
+    frame = reports.reindex(columns=columns).copy()
+    frame["营业总收入"] = frame["营业总收入"].map(_financial_amount_to_number)
+    frame["净利润"] = frame["净利润"].map(_financial_amount_to_number)
+    frame = frame.dropna(subset=["报告期"], how="any").iloc[::-1]
+
+    fig = go.Figure()
+    for column, label, color in (
+        ("营业总收入", "营业总收入", "#22d3ee"),
+        ("净利润", "净利润", "#8b5cf6"),
+    ):
+        values = frame[column] / unit_scale
+        fig.add_trace(
+            go.Bar(
+                x=frame["报告期"],
+                y=values,
+                name=label,
+                marker_color=color,
+                opacity=0.9,
+                hovertemplate=f"报告期：%{{x}}<br>{label}：%{{y:.2f}}{unit_label}<extra></extra>",
+            )
+        )
+
+    fig.update_layout(
+        title=dict(text=title, x=0.01, xanchor="left"),
+        barmode="group",
+        bargap=0.28,
+        bargroupgap=0.08,
+        height=330,
+        margin=dict(l=35, r=20, t=58, b=35),
+        hovermode="x unified",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
+    fig.update_yaxes(title_text=unit_label, rangemode="tozero")
+    return _apply_dark_theme(fig)
 
 
 def _trading_day_rangebreaks(index: pd.Index) -> list:
@@ -99,6 +161,14 @@ def plot_candlestick(
         if show_amount
         else df["Volume"].map(lambda value: format_volume(value, market)).to_numpy()
     )
+    latest_close = float(pd.to_numeric(df["Close"], errors="coerce").iloc[-1])
+    close_prices = pd.to_numeric(df["Close"], errors="coerce")
+    forward_returns = (latest_close / close_prices - 1) * 100
+    forward_return_hover = [
+        f"<span style='color:{'#e53935' if value >= 0 else '#1e9d55'}'>至最新交易日：{value:+.2f}%</span>"
+        if pd.notna(value) else "至最新交易日：—"
+        for value in forward_returns
+    ]
     fig = make_subplots(
         rows=2,
         cols=1,
@@ -114,11 +184,12 @@ def plot_candlestick(
         low=df['Low'],
         close=df['Close'],
         name='K线',
+        customdata=forward_return_hover,
         hovertemplate=(
             "开盘：%{open:.2f}<br>"
             "最高：%{high:.2f}<br>"
             "最低：%{low:.2f}<br>"
-            "收盘：%{close:.2f}<extra></extra>"
+            "收盘：%{close:.2f}<br>%{customdata}<extra></extra>"
         ),
         increasing_line_color=up_color,
         increasing_fillcolor=up_color,

@@ -33,10 +33,10 @@ KR_TICKER_OPTIONS = {
 }
 
 CN_INDEX_CONFIG = (
-    {"name": "上证指数", "symbol": "1A0001", "display_code": "000001"},
-    {"name": "深证成指", "symbol": "399001", "display_code": "399001"},
-    {"name": "创业板指", "symbol": "399006", "display_code": "399006"},
-    {"name": "科创综指", "symbol": "1B0680", "display_code": "000680"},
+    {"name": "上证指数", "symbol": "1A0001", "display_code": "000001", "eastmoney_secid": "1.000001"},
+    {"name": "深证成指", "symbol": "399001", "display_code": "399001", "eastmoney_secid": "0.399001"},
+    {"name": "创业板指", "symbol": "399006", "display_code": "399006", "eastmoney_secid": "0.399006"},
+    {"name": "科创综指", "symbol": "1B0680", "display_code": "000680", "eastmoney_secid": "1.000680"},
     {"name": "北证50", "symbol": "899050", "display_code": "899050", "eastmoney_secid": "0.899050"},
 )
 

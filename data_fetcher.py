@@ -9,6 +9,7 @@ import numpy as np
 import os
 import json
 import re
+from datetime import datetime, timedelta
 from io import StringIO
 from pathlib import Path
 from curl_cffi import requests
@@ -16,6 +17,9 @@ from urllib.parse import urlparse
 from yfinance.exceptions import YFRateLimitError, YFTickerMissingError
 
 CACHE_DIR = Path(__file__).resolve().parent / "data" / "cache"
+FINANCIAL_CACHE_DIR = CACHE_DIR / "financial_reports"
+FINANCIAL_CACHE_TTL = timedelta(hours=12)
+FINANCIAL_CACHE_RETENTION = timedelta(days=30)
 REQUIRED_PRICE_COLUMNS = ["Open", "High", "Low", "Close", "Volume"]
 DEMO_START_PRICES = {
     "AAPL": 190.0,
@@ -119,6 +123,42 @@ def _date_key(value) -> str:
 def _cache_path(ticker: str) -> Path:
     safe_ticker = "".join(char if char.isalnum() else "_" for char in ticker.upper())
     return CACHE_DIR / f"{safe_ticker}.csv"
+
+
+def _financial_cache_path(ticker: str) -> Path:
+    safe_ticker = "".join(char if char.isalnum() else "_" for char in ticker.upper())
+    return FINANCIAL_CACHE_DIR / f"{safe_ticker}.json"
+
+
+def _prune_financial_cache(now: datetime | None = None) -> None:
+    """Remove financial-report cache files that no page has used for 30 days."""
+    now = now or datetime.now()
+    if not FINANCIAL_CACHE_DIR.exists():
+        return
+    for path in FINANCIAL_CACHE_DIR.glob("*.json"):
+        if datetime.fromtimestamp(path.stat().st_mtime) < now - FINANCIAL_CACHE_RETENTION:
+            path.unlink(missing_ok=True)
+
+
+def _load_financial_cache(ticker: str) -> pd.DataFrame:
+    _prune_financial_cache()
+    path = _financial_cache_path(ticker)
+    if not path.exists() or datetime.fromtimestamp(path.stat().st_mtime) < datetime.now() - FINANCIAL_CACHE_TTL:
+        return pd.DataFrame()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        result = pd.DataFrame(payload["reports"])
+        result.attrs.update({"source": "同花顺 F10 本地缓存", "ttm_net_profit": payload.get("ttm_net_profit")})
+        return result
+    except (OSError, ValueError, KeyError):
+        return pd.DataFrame()
+
+
+def _save_financial_cache(ticker: str, reports: pd.DataFrame) -> None:
+    FINANCIAL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    _prune_financial_cache()
+    payload = {"reports": reports.to_dict(orient="records"), "ttm_net_profit": reports.attrs.get("ttm_net_profit")}
+    _financial_cache_path(ticker).write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
 
 
 def _standardize_price_frame(df: pd.DataFrame) -> pd.DataFrame:
@@ -515,7 +555,10 @@ def fetch_a_share_pe_ttm(
 
 
 def fetch_a_share_financial_reports(ticker: str) -> pd.DataFrame:
-    """Load the latest annual report and current fiscal-year quarters from THS F10."""
+    """Load the latest available annual and quarterly reports from THS F10."""
+    cached = _load_financial_cache(ticker)
+    if not cached.empty:
+        return cached
     code = ticker.split(".")[0]
     url = f"https://basic.10jqka.com.cn/{code}/finance.html"
     headers = {
@@ -555,20 +598,10 @@ def fetch_a_share_financial_reports(ticker: str) -> pd.DataFrame:
         if index < len(report):
             fields[title] = report[index]
 
-    annual_indices = [
-        index for index, period in enumerate(periods)
-        if period.endswith("-12-31")
-    ]
-    latest_annual_index = annual_indices[0] if annual_indices else None
-    latest_year = max(int(period[:4]) for period in periods)
-    quarter_indices = [
-        index for index, period in enumerate(periods)
-        if int(period[:4]) == latest_year and not period.endswith("-12-31")
-    ]
-    selected_indices = (
-        ([latest_annual_index] if latest_annual_index is not None else [])
-        + list(reversed(quarter_indices))
-    )
+    # The F10 payload already orders its report periods from newest to oldest.
+    # Keep the history here; the UI separately selects the latest four annual
+    # reports and the latest four quarterly reports.
+    selected_indices = list(range(len(periods)))
 
     def value(field, index):
         values = fields.get(field, [])
@@ -607,6 +640,7 @@ def fetch_a_share_financial_reports(ticker: str) -> pd.DataFrame:
         periods, fields.get("净利润", [])
     )
     result.attrs["source"] = "同花顺 F10"
+    _save_financial_cache(ticker, result)
     return result
 
 

@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import importlib
+import visualization
+import pages.market_overviews as market_overviews
 
 # 导入自定义模块
 from data_fetcher import DataFetchError
@@ -20,40 +22,31 @@ from formatters import (
     format_statistics,
     format_volume,
 )
-from market_snapshot import (
-    fetch_a_share_market_snapshot,
-    flatten_a_share_universe,
-    rank_snapshot,
-)
 from new_listing import (
     get_new_listing_state,
     is_new_listing_history,
     pad_new_listing_chart,
 )
-from news_fetcher import fetch_recent_financial_news
-from visualization import plot_candlestick, plot_intraday, plot_rsi, plot_macd
+from visualization import plot_candlestick, plot_financial_report_bars, plot_intraday, plot_rsi, plot_macd
 from config.app_config import VALUATION_CACHE_VERSION, configure_page, get_ths_access_token
-from pages.market_overviews import (
-    render_a_share_rankings as render_a_share_rankings_page,
-    render_news_page as render_news_page_view,
-)
 from components.sidebar import render_sidebar
 from services.market_data import (
-    indicator_warmup_start as service_indicator_warmup_start,
-    is_a_share_trading_session as service_is_a_share_trading_session,
-    is_market_trading_session as service_is_market_trading_session,
-    load_data as service_load_data,
-    load_financial_reports as service_load_financial_reports,
-    load_intraday as service_load_intraday,
-    load_krw_usd_rate as service_load_krw_usd_rate,
-    load_us_market_cap as service_load_us_market_cap,
-    load_valuation as service_load_valuation,
-    trim_to_display_range as service_trim_to_display_range,
+    indicator_warmup_start,
+    is_market_trading_session,
+    load_data,
+    load_financial_reports,
+    load_intraday,
+    load_krw_usd_rate,
+    load_us_market_cap,
+    load_valuation,
+    trim_to_display_range,
 )
 
 # Streamlit reruns the app in the same process, so refresh the separately
 # maintained stock universe before building sidebar options.
 importlib.reload(a_share_universe)
+importlib.reload(visualization)
+importlib.reload(market_overviews)
 A_SHARE_UNIVERSE = a_share_universe.A_SHARE_UNIVERSE
 
 
@@ -166,12 +159,114 @@ st.markdown("""
         padding: 0.22rem 0.35rem 0.12rem;
     }
     .nav-label {
-        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 0.48rem;
+        color: #a9b7ca;
         font-size: 0.76rem;
         font-weight: 700;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        margin: 0 0 0.4rem 0.15rem;
+        letter-spacing: 0.06em;
+        margin: 0 0 0.48rem 0.08rem;
+    }
+    .nav-label::before {
+        content: "";
+        width: 0.42rem;
+        height: 0.42rem;
+        border-radius: 999px;
+        background: var(--brand);
+        box-shadow: 0 0 0 0.22rem rgba(34, 211, 238, 0.10);
+    }
+    .st-key-top_navigation {
+        position: relative;
+        max-width: 1280px;
+        margin: 0 auto 1.25rem;
+        padding: 0.9rem 1rem 1rem;
+        overflow: hidden;
+        border: 1px solid rgba(50, 69, 94, 0.82);
+        border-radius: 1.15rem;
+        background:
+            radial-gradient(circle at 20% 0%, rgba(34, 211, 238, 0.08), transparent 28rem),
+            linear-gradient(145deg, rgba(15, 24, 40, 0.96), rgba(9, 15, 27, 0.98));
+        box-shadow: 0 22px 54px rgba(0, 0, 0, 0.24);
+    }
+    .st-key-top_navigation::before {
+        content: "";
+        position: absolute;
+        inset: 0 18% auto;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, rgba(103, 232, 249, 0.8), transparent);
+    }
+    .top-nav-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 0.2rem 0.68rem;
+        color: #dce7f5;
+        font-size: 0.82rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+    }
+    .top-nav-heading span:last-child {
+        color: #71839b;
+        font-size: 0.72rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+    }
+    .st-key-top_navigation [data-testid="stColumn"] {
+        padding: 0.72rem 0.8rem 0.78rem;
+        border: 1px solid rgba(38, 56, 79, 0.82);
+        border-radius: 0.88rem;
+        background: rgba(8, 14, 25, 0.58);
+    }
+    .st-key-top_navigation .st-key-page_navigation [data-baseweb="button-group"] {
+        padding: 0.3rem !important;
+        border-color: rgba(45, 65, 90, 0.92) !important;
+        border-radius: 0.9rem !important;
+        background: rgba(5, 10, 19, 0.76) !important;
+    }
+    .st-key-top_navigation .st-key-page_navigation button {
+        min-height: 3rem !important;
+        background: transparent !important;
+        color: #8fa0b7 !important;
+    }
+    .st-key-top_navigation .st-key-page_navigation button:hover,
+    .st-key-top_navigation .st-key-market_navigation button:hover,
+    .st-key-top_navigation .st-key-market_view_navigation button:hover {
+        color: #d7e3f2 !important;
+        background: rgba(23, 35, 55, 0.72) !important;
+    }
+    .st-key-top_navigation .st-key-page_navigation button[aria-pressed="true"],
+    .st-key-top_navigation .st-key-page_navigation button[aria-checked="true"],
+    .st-key-top_navigation .st-key-page_navigation button[data-active="true"],
+    .st-key-top_navigation .st-key-page_navigation button[data-selected="true"] {
+        color: #e8fbff !important;
+        background: linear-gradient(110deg, rgba(8, 145, 178, 0.34), rgba(37, 99, 235, 0.28)) !important;
+        box-shadow:
+            inset 0 0 0 1px rgba(103, 232, 249, 0.52),
+            0 8px 22px rgba(3, 105, 161, 0.16) !important;
+    }
+    .st-key-top_navigation .st-key-market_navigation [data-baseweb="button-group"],
+    .st-key-top_navigation .st-key-market_view_navigation [data-baseweb="button-group"] {
+        padding: 0.18rem !important;
+        border: 0 !important;
+        background: rgba(15, 26, 43, 0.78) !important;
+    }
+    .st-key-top_navigation .st-key-market_navigation button,
+    .st-key-top_navigation .st-key-market_view_navigation button {
+        min-height: 2.4rem !important;
+        background: transparent !important;
+    }
+    .st-key-top_navigation .st-key-market_navigation button[aria-pressed="true"],
+    .st-key-top_navigation .st-key-market_navigation button[aria-checked="true"],
+    .st-key-top_navigation .st-key-market_navigation button[data-active="true"],
+    .st-key-top_navigation .st-key-market_navigation button[data-selected="true"],
+    .st-key-top_navigation .st-key-market_view_navigation button[aria-pressed="true"],
+    .st-key-top_navigation .st-key-market_view_navigation button[aria-checked="true"],
+    .st-key-top_navigation .st-key-market_view_navigation button[data-active="true"],
+    .st-key-top_navigation .st-key-market_view_navigation button[data-selected="true"] {
+        color: var(--brand-strong) !important;
+        background: #17263b !important;
+        box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.24) !important;
     }
     [data-testid="stVerticalBlockBorderWrapper"] {
         background: linear-gradient(145deg, rgba(17, 27, 44, 0.94), rgba(11, 18, 31, 0.96));
@@ -224,43 +319,86 @@ st.markdown("""
     button[data-variant="segmented_control"] * {
         color: inherit !important;
     }
-    .metric-card {
-        background-color: var(--surface);
-        border-radius: 12px;
-        padding: 1rem;
-        text-align: center;
-    }
     [data-testid="stMetric"] {
-        min-height: 6.35rem;
-        padding: 0.85rem 1rem;
-        border: 1px solid var(--line);
-        border-radius: 0.9rem;
-        background: linear-gradient(145deg, rgba(17, 27, 44, 0.98), rgba(12, 20, 34, 0.98));
-        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
-        transition: border-color 160ms ease, transform 160ms ease;
+        position: relative;
+        min-height: 7rem;
+        padding: 1rem 1.15rem;
+        overflow: hidden;
+        border: 1px solid rgba(35, 51, 72, 0.94);
+        border-radius: 1rem;
+        background:
+            radial-gradient(circle at 100% 0%, rgba(34, 211, 238, 0.055), transparent 11rem),
+            linear-gradient(145deg, rgba(17, 27, 44, 0.98), rgba(11, 19, 32, 0.98));
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+        transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+    }
+    [data-testid="stMetric"]::after,
+    .compact-amount-card::after {
+        content: "";
+        position: absolute;
+        inset: -1.35rem auto auto -0.45rem;
+        width: 6rem;
+        height: 3.2rem;
+        border-radius: 50%;
+        background: radial-gradient(
+            ellipse at center,
+            rgba(34, 211, 238, 0.24) 0%,
+            rgba(34, 211, 238, 0.08) 44%,
+            transparent 74%
+        );
+        filter: blur(7px);
+        opacity: 0.58;
+        pointer-events: none;
     }
     [data-testid="stMetric"]:hover {
-        border-color: var(--line-strong);
-        transform: translateY(-1px);
+        border-color: rgba(62, 88, 120, 0.96);
+        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.24);
+        transform: translateY(-2px);
     }
     [data-testid="stMetricLabel"] {
         color: var(--muted);
-        font-weight: 600;
-        font-size: 0.86rem;
+        font-weight: 650;
+        font-size: 0.82rem;
+        letter-spacing: 0.015em;
     }
     [data-testid="stMetricValue"] {
         color: var(--ink);
         letter-spacing: -0.035em;
         line-height: 1.12;
     }
+    [data-testid="stMetricValue"] p {
+        font-size: clamp(1.75rem, 2.35vw, 2.55rem);
+    }
+    [data-testid="stMetric"]:has([data-testid="stMetricDelta"]) {
+        border-color: rgba(34, 211, 238, 0.22);
+        background:
+            radial-gradient(circle at 100% 0%, rgba(34, 211, 238, 0.12), transparent 15rem),
+            linear-gradient(145deg, rgba(17, 31, 49, 0.99), rgba(11, 19, 32, 0.99));
+    }
+    [data-testid="stMetricDelta"] {
+        width: fit-content;
+        padding: 0.2rem 0.48rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.055);
+    }
     .compact-amount-card {
+        position: relative;
         box-sizing: border-box;
-        min-height: 6.35rem;
-        padding: 0.85rem 1rem;
-        border: 1px solid var(--line);
-        border-radius: 0.9rem;
-        background: linear-gradient(145deg, rgba(17, 27, 44, 0.98), rgba(12, 20, 34, 0.98));
-        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+        min-height: 7rem;
+        padding: 1rem 1.15rem;
+        overflow: hidden;
+        border: 1px solid rgba(35, 51, 72, 0.94);
+        border-radius: 1rem;
+        background:
+            radial-gradient(circle at 100% 0%, rgba(139, 92, 246, 0.08), transparent 11rem),
+            linear-gradient(145deg, rgba(17, 27, 44, 0.98), rgba(11, 19, 32, 0.98));
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+        transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+    }
+    .compact-amount-card:hover {
+        border-color: rgba(62, 88, 120, 0.96);
+        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.24);
+        transform: translateY(-2px);
     }
     .compact-amount-label {
         color: var(--muted);
@@ -269,9 +407,9 @@ st.markdown("""
     }
     .compact-amount-value {
         color: var(--ink);
-        font-size: clamp(1.25rem, 1.7vw, 2.1rem);
+        font-size: clamp(1.25rem, 1.65vw, 2rem);
         letter-spacing: -0.035em;
-        line-height: 1.25;
+        line-height: 1.3;
         white-space: nowrap;
     }
     .compact-amount-date {
@@ -304,6 +442,27 @@ st.markdown("""
     .cn-price-direction {
         display: none;
     }
+    .metric-section-heading {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        margin: 0.15rem 0 0.72rem;
+    }
+    .metric-section-heading strong {
+        color: #dfe9f6;
+        font-size: 0.98rem;
+        letter-spacing: -0.01em;
+    }
+    .metric-section-heading span {
+        color: #71839b;
+        font-size: 0.76rem;
+    }
+    .secondary-metric-marker {
+        display: none;
+    }
+    [data-testid="stColumn"]:has(.secondary-metric-marker) [data-testid="stMetricValue"] p {
+        font-size: clamp(1.35rem, 1.8vw, 2rem);
+    }
     [data-testid="stColumn"]:has(.cn-price-up) [data-testid="stMetricValue"],
     [data-testid="stColumn"]:has(.cn-price-up) [data-testid="stMetricValue"] p {
         color: #e53935 !important;
@@ -312,26 +471,64 @@ st.markdown("""
     [data-testid="stColumn"]:has(.cn-price-down) [data-testid="stMetricValue"] p {
         color: #1e9d55 !important;
     }
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 0.35rem;
-        padding: 0.3rem;
-        border-radius: 0.85rem;
-        background: #080e19;
-        border: 1px solid var(--line);
+    .stTabs [role="tablist"] {
+        align-items: center;
+        gap: 1.2rem;
+        padding: 0 0.16rem;
+        background: transparent;
+        border-bottom: 1px solid var(--line);
     }
-    .stTabs [data-baseweb="tab"] {
-        padding: 0.65rem 1rem;
-        border-radius: 0.65rem;
-        font-weight: 600;
-        color: #8fa0b7;
+    .stTabs [role="tablist"]::after {
+        content: "分析模块 · 6 个视图";
+        position: static;
+        z-index: auto;
+        flex: 0 0 auto;
+        margin-left: auto;
+        padding-right: 0.32rem;
+        color: #667990;
+        font-size: 0.7rem;
+        font-weight: 650;
+        letter-spacing: 0.06em;
+        white-space: nowrap;
+    }
+    .stTabs [role="tab"] {
+        position: relative;
+        padding: 0.76rem 0.92rem 0.82rem;
+        border-radius: 0.72rem 0.72rem 0 0;
+        font-weight: 650;
+        color: #9cabbe;
+        transition: color 160ms ease, background 160ms ease, transform 160ms ease;
+    }
+    .stTabs [role="tab"]:hover {
+        color: #dbe7f5;
+        background: rgba(34, 211, 238, 0.06);
+        transform: translateY(-1px);
     }
     .stTabs [aria-selected="true"] {
-        background: #172337;
-        color: var(--brand-strong) !important;
-        box-shadow: inset 0 0 0 1px rgba(34, 211, 238, 0.22);
+        color: #c8f8ff !important;
+        background: linear-gradient(180deg, rgba(34, 211, 238, 0.18), rgba(34, 211, 238, 0.045)) !important;
+        box-shadow: 0 8px 22px rgba(3, 105, 161, 0.1);
+        text-shadow: 0 0 16px rgba(103, 232, 249, 0.28);
     }
-    .stTabs [data-baseweb="tab-highlight"] {
-        display: none;
+    .stTabs [aria-selected="true"]::after {
+        content: "";
+        position: absolute;
+        inset: auto 9% -1px;
+        height: 3px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, transparent, var(--brand) 28%, var(--brand-strong) 50%, var(--brand) 72%, transparent);
+        box-shadow: 0 -3px 14px rgba(34, 211, 238, 0.42);
+    }
+    .stTabs [role="tab"]:focus-visible {
+        outline: 1px solid rgba(103, 232, 249, 0.24);
+        outline-offset: -3px;
+    }
+    .valuation-note-right {
+        padding-top: 0.1rem;
+        color: #71839b;
+        font-size: 0.76rem;
+        line-height: 1.45;
+        text-align: right;
     }
     .stButton > button {
         border-radius: 0.7rem;
@@ -500,6 +697,10 @@ st.markdown("""
         border-radius: 0.8rem;
         box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
     }
+    [data-testid="stAlert"] [data-testid="stMarkdownContainer"] p {
+        margin: 0;
+        font-size: 0.9rem;
+    }
     [data-testid="stDownloadButton"] button {
         background: linear-gradient(110deg, #0891b2, #2563eb);
         border: 0;
@@ -507,44 +708,33 @@ st.markdown("""
     }
     a { color: var(--brand-strong); }
     .nav-context {
-        margin-top: 0.65rem;
-        padding-top: 0.65rem;
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        margin-top: 0.72rem;
+        padding: 0.72rem 0 0.62rem;
         border-top: 1px solid rgba(38, 56, 79, 0.72);
     }
-    .ranking-header,
-    .news-header {
-        margin: 0.35rem 0 1.15rem;
-    }
-    .ranking-header h2,
-    .news-header h2 {
-        margin-bottom: 0.3rem;
-        color: var(--ink);
-        letter-spacing: -0.025em;
-    }
-    .ranking-header p,
-    .news-header p {
-        margin: 0;
-        color: var(--muted);
-        font-size: 0.9rem;
-    }
-    .news-source-badge {
-        display: inline-flex;
-        align-items: center;
-        min-width: 4.5rem;
-        justify-content: center;
-        padding: 0.25rem 0.55rem;
-        border: 1px solid var(--line-strong);
-        border-radius: 999px;
-        background: #101b2c;
-        color: var(--brand-strong);
-        font-size: 0.75rem;
+    .nav-context::before {
+        content: "分析范围";
+        color: #71839b;
+        font-size: 0.7rem;
         font-weight: 700;
-        letter-spacing: 0.02em;
+        letter-spacing: 0.08em;
     }
-    .news-time {
-        color: var(--muted);
-        font-size: 0.78rem;
-        white-space: nowrap;
+    .nav-context::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: linear-gradient(90deg, rgba(38, 56, 79, 0.55), transparent);
+    }
+    @media (max-width: 1200px) {
+        .stTabs [role="tablist"] {
+            gap: 0.55rem;
+        }
+        .stTabs [role="tablist"]::after {
+            display: none;
+        }
     }
     @media (max-width: 900px) {
         [data-testid="stMainBlockContainer"] {
@@ -553,6 +743,34 @@ st.markdown("""
         .nav-context {
             margin-top: 0.5rem;
             padding-top: 0.5rem;
+        }
+        .st-key-top_navigation {
+            padding: 0.72rem;
+            border-radius: 0.95rem;
+        }
+        .top-nav-heading span:last-child {
+            display: none;
+        }
+        .st-key-top_navigation [data-testid="stColumn"] {
+            flex: 1 1 100% !important;
+            width: 100% !important;
+            padding: 0.62rem 0.68rem;
+        }
+        .st-key-top_navigation [data-testid="stHorizontalBlock"],
+        [data-testid="stHorizontalBlock"]:has([data-testid="stMetric"]) {
+            flex-wrap: wrap;
+        }
+        [data-testid="stHorizontalBlock"]:has([data-testid="stMetric"]) > [data-testid="stColumn"] {
+            flex: 1 1 12rem !important;
+            width: auto !important;
+            min-width: min(12rem, 100%) !important;
+        }
+        [data-testid="stMetric"],
+        .compact-amount-card {
+            min-height: 6.4rem;
+        }
+        .valuation-note-right {
+            text-align: left;
         }
         .pe-formula-grid {
             grid-template-columns: 1fr;
@@ -569,241 +787,54 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-def is_a_share_trading_session() -> bool:
-    now = datetime.now(ZoneInfo("Asia/Shanghai"))
-    if now.weekday() >= 5:
-        return False
-    current = now.time()
-    return (
-        datetime.strptime("09:30", "%H:%M").time()
-        <= current
-        <= datetime.strptime("11:30", "%H:%M").time()
-    ) or (
-        datetime.strptime("13:00", "%H:%M").time()
-        <= current
-        <= datetime.strptime("15:00", "%H:%M").time()
-    )
-
-
-@st.cache_data(ttl=25, show_spinner=False)
-def load_a_share_market_snapshot():
-    universe_rows = flatten_a_share_universe(A_SHARE_UNIVERSE)
-    return fetch_a_share_market_snapshot(universe_rows)
-
-
-@st.cache_data(ttl=600, show_spinner=False)
-def load_recent_financial_news(hours=72):
-    return fetch_recent_financial_news(hours=hours)
-
-
-RANKING_CONFIG = {
-    "change_pct": ("涨幅榜", "涨跌幅", 1.0, "%.2f%%"),
-    "amount": ("成交额榜", "成交额（亿元）", 1e8, "%.2f"),
-    "market_cap": ("市值榜", "总市值（亿元）", 1e8, "%.2f"),
-    "pe_ttm": ("市盈率榜", "PE TTM", 1.0, "%.2f"),
-}
-
-
-def render_ranking_table(snapshot, metric):
-    title, metric_label, divisor, number_format = RANKING_CONFIG[metric]
-    ranked = rank_snapshot(snapshot, metric).copy()
-    ranked[metric] = pd.to_numeric(ranked[metric], errors="coerce") / divisor
-    columns = ["rank", "name", "price", "industry", metric, "quote_time", "stale"]
-    display = ranked.reindex(columns=columns).rename(
-        columns={
-            "rank": "排名",
-            "name": "股票",
-            "price": "现价",
-            "industry": "赛道",
-            metric: metric_label,
-            "quote_time": "数据时间",
-            "stale": "状态",
-        }
-    )
-    display["状态"] = display["状态"].map({True: "缓存", False: "实时"}).fillna("实时")
-    st.dataframe(
-        display,
-        width="stretch",
-        height=560,
-        hide_index=True,
-        column_config={
-            "排名": st.column_config.NumberColumn(width="small", format="%d"),
-            "现价": st.column_config.NumberColumn(format="%.2f"),
-            metric_label: st.column_config.NumberColumn(format=number_format),
-            "状态": st.column_config.TextColumn(width="small"),
-        },
-        key=f"a-share-ranking:{metric}",
-    )
-    st.caption(f"{title}覆盖 A_SHARE_UNIVERSE 全部 {len(display)} 只股票。")
-
-
-# Bind the extracted implementation before this decorator evaluates at import time.
-is_a_share_trading_session = service_is_a_share_trading_session
-
-
-@st.fragment(run_every="30s" if is_a_share_trading_session() else None)
-def render_a_share_rankings():
-    header_col, action_col = st.columns([5, 1])
-    with header_col:
-        st.markdown(
-            """
-            <div class="ranking-header">
-                <h2>A股股票池排行</h2>
-                <p>覆盖全部产业链标的，实时指标与最新完成日 K 估值分开计算。</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with action_col:
-        manually_refreshed = st.button(
-            "立即刷新", key="refresh-a-share-rankings", width="stretch"
-        )
-    if manually_refreshed:
-        load_a_share_market_snapshot.clear()
-
-    try:
-        with st.spinner("正在更新 A股股票池快照..."):
-            snapshot = load_a_share_market_snapshot()
-    except Exception as error:
-        st.error(f"排行榜暂时无法更新：{error}")
-        return
-
-    if snapshot.empty:
-        st.warning("暂时没有可用于排行榜的 A股行情。")
-        return
-
-    stale_series = snapshot.get("stale", pd.Series(False, index=snapshot.index))
-    stale_count = int(stale_series.fillna(False).sum())
-    quote_times = snapshot.get("quote_time")
-    latest_quote_time = ""
-    if quote_times is not None and quote_times.notna().any():
-        latest_quote_time = str(quote_times.dropna().max())
-    refresh_note = "交易时段每 30 秒刷新" if is_a_share_trading_session() else "非交易时段停止自动刷新"
-    stale_note = f" · {stale_count} 只使用缓存" if stale_count else ""
-    st.caption(
-        f"排行榜数据来源：东方财富 · {refresh_note}"
-        f"{f' · 数据时间 {latest_quote_time}' if latest_quote_time else ''}{stale_note}"
-    )
-
-    ranking_tabs = st.tabs([config[0] for config in RANKING_CONFIG.values()])
-    for tab, metric in zip(ranking_tabs, RANKING_CONFIG):
-        with tab:
-            render_ranking_table(snapshot, metric)
-
-
-def _format_news_time(value):
-    if value is None:
-        return "采集时间未知"
-    timestamp = pd.Timestamp(value)
-    if timestamp.tzinfo is None:
-        timestamp = timestamp.tz_localize("Asia/Shanghai")
-    else:
-        timestamp = timestamp.tz_convert("Asia/Shanghai")
-    return timestamp.strftime("%m-%d %H:%M")
-
-
-def render_news_page():
-    header_col, action_col = st.columns([5, 1])
-    with header_col:
-        st.markdown(
-            """
-            <div class="news-header">
-                <h2>新闻热点</h2>
-                <p>最近 72 小时财经快报 · Yahoo 3 条 / 同花顺 4 条 / 抖音 3 条</p>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with action_col:
-        manually_refreshed = st.button(
-            "刷新热点", key="refresh-financial-news", width="stretch"
-        )
-    if manually_refreshed:
-        load_recent_financial_news.clear()
-
-    try:
-        with st.spinner("正在汇总财经热点..."):
-            items, source_status = load_recent_financial_news(72)
-    except Exception as error:
-        st.error(f"新闻热点暂时无法加载：{error}")
-        return
-
-    if not items:
-        st.warning("最近 72 小时暂未读取到可显示的财经热点。")
-    for item in items:
-        effective_time = getattr(item, "published_at", None) or getattr(item, "observed_at", None)
-        with st.container(border=True):
-            source_col, title_col, time_col, link_col = st.columns([1.1, 6.8, 1.4, 1.2])
-            with source_col:
-                st.markdown(
-                    f'<span class="news-source-badge">{html.escape(item.source)}</span>',
-                    unsafe_allow_html=True,
-                )
-            with title_col:
-                st.markdown(f"**{html.escape(item.title)}**")
-            with time_col:
-                st.markdown(
-                    f'<span class="news-time">{_format_news_time(effective_time)}</span>',
-                    unsafe_allow_html=True,
-                )
-            with link_col:
-                st.link_button("查看原文", item.url, width="stretch")
-
-    non_ok_status = [
-        f"{source}：{status}"
-        for source, status in source_status.items()
-        if status and str(status).lower() not in {"ok", "正常"}
-    ]
-    if non_ok_status:
-        st.caption(" · ".join(non_ok_status))
-
-
 # ============ 标题区域 ============
 st.markdown('<div class="main-header">Stock Insight</div>', unsafe_allow_html=True)
 
 # ============ 顶部导航 ============
-nav_spacer_left, nav_area, nav_spacer_right = st.columns([0.35, 6.3, 0.35])
 market_label = None
 a_share_view = None
-with nav_area:
-    with st.container(border=True):
-        page = st.segmented_control(
-            "主导航",
-            ["行情分析", "指标说明", "新闻热点"],
-            default="行情分析",
-            key="page_navigation",
-            label_visibility="collapsed",
-            width="stretch",
-        )
-        if page == "行情分析":
-            st.markdown('<div class="nav-context"></div>', unsafe_allow_html=True)
-            market_nav, a_share_nav = st.columns(2, gap="large")
-            with market_nav:
-                st.markdown('<div class="nav-label">股票市场</div>', unsafe_allow_html=True)
-                market_label = st.segmented_control(
-                    "股票市场",
-                    ["美股", "A股", "韩股"],
-                    default="A股",
-                    key="market_navigation",
-                    label_visibility="collapsed",
-                    width="stretch",
-                )
-            with a_share_nav:
-                view_label = {"A股": "A股视图", "美股": "美股视图", "韩股": "韩股视图"}[market_label]
-                view_options = ["个股分析", "股票池排行"] if market_label == "A股" else ["个股分析"]
-                if (
-                    "market_view_navigation" not in st.session_state
-                    or st.session_state["market_view_navigation"] not in view_options
-                ):
-                    st.session_state["market_view_navigation"] = "个股分析"
-                st.markdown(f'<div class="nav-label">{view_label}</div>', unsafe_allow_html=True)
-                a_share_view = st.segmented_control(
-                    view_label,
-                    view_options,
-                    key="market_view_navigation",
-                    label_visibility="collapsed",
-                    width="stretch",
-                )
+with st.container(key="top_navigation"):
+    st.markdown(
+        '<div class="top-nav-heading"><span>市场工作台</span><span>行情 · 指标 · 资讯</span></div>',
+        unsafe_allow_html=True,
+    )
+    page = st.segmented_control(
+        "主导航",
+        ["行情分析", "指标说明", "新闻热点"],
+        default="行情分析",
+        key="page_navigation",
+        label_visibility="collapsed",
+        width="stretch",
+    )
+    if page == "行情分析":
+        st.markdown('<div class="nav-context"></div>', unsafe_allow_html=True)
+        market_nav, a_share_nav = st.columns(2, gap="medium")
+        with market_nav:
+            st.markdown('<div class="nav-label">股票市场</div>', unsafe_allow_html=True)
+            market_label = st.segmented_control(
+                "股票市场",
+                ["美股", "A股", "韩股"],
+                default="A股",
+                key="market_navigation",
+                label_visibility="collapsed",
+                width="stretch",
+            )
+        with a_share_nav:
+            view_label = {"A股": "A股视图", "美股": "美股视图", "韩股": "韩股视图"}[market_label]
+            view_options = ["个股分析", "股票池排行"] if market_label == "A股" else ["个股分析"]
+            if (
+                "market_view_navigation" not in st.session_state
+                or st.session_state["market_view_navigation"] not in view_options
+            ):
+                st.session_state["market_view_navigation"] = "个股分析"
+            st.markdown(f'<div class="nav-label">{view_label}</div>', unsafe_allow_html=True)
+            a_share_view = st.segmented_control(
+                view_label,
+                view_options,
+                key="market_view_navigation",
+                label_visibility="collapsed",
+                width="stretch",
+            )
 
 # 非行情页面在构建侧栏及请求市场数据前完成路由。
 if page == "指标说明":
@@ -812,11 +843,11 @@ if page == "指标说明":
     st.stop()
 if page == "新闻热点":
     st.markdown("---")
-    render_news_page_view()
+    market_overviews.render_news_page()
     st.stop()
 if market_label == "A股" and a_share_view == "股票池排行":
     st.markdown("---")
-    render_a_share_rankings_page(A_SHARE_UNIVERSE)
+    market_overviews.render_a_share_rankings(A_SHARE_UNIVERSE)
     st.stop()
 
 # ============ 侧边栏控制面板 ============
@@ -830,11 +861,6 @@ ma_periods = controls.ma_periods
 show_bbi = controls.show_bbi
 show_boll = controls.show_boll
 rsi_period = controls.rsi_period
-
-
-# The service implementation is bound before the fragment decorator evaluates
-# its refresh schedule during Streamlit page initialization.
-is_a_share_trading_session = service_is_a_share_trading_session
 
 
 def refresh_intraday_data(selected_ticker: str) -> None:
@@ -907,19 +933,6 @@ def render_intraday_panel(selected_ticker, selected_market, display_market=None,
         width="stretch",
         key=f"intraday-chart:{selected_market}:{selected_ticker}",
     )
-
-
-# Cached fetching and date-range rules are implemented in services/market_data.py.
-is_a_share_trading_session = service_is_a_share_trading_session
-is_market_trading_session = service_is_market_trading_session
-load_data = service_load_data
-indicator_warmup_start = service_indicator_warmup_start
-trim_to_display_range = service_trim_to_display_range
-load_valuation = service_load_valuation
-load_us_market_cap = service_load_us_market_cap
-load_financial_reports = service_load_financial_reports
-load_intraday = service_load_intraday
-load_krw_usd_rate = service_load_krw_usd_rate
 
 
 loading_message = st.empty()
@@ -1150,6 +1163,11 @@ def render_max_daily_amount_card(value: str, date: str):
         unsafe_allow_html=True,
     )
 
+st.markdown(
+    '<div class="metric-section-heading"><strong>市场快照</strong><span>价格 · 成交 · 波动 · 规模</span></div>',
+    unsafe_allow_html=True,
+)
+
 if market == "CN":
     price_columns = st.columns(3)
     with price_columns[0]:
@@ -1172,12 +1190,15 @@ if market == "CN":
     secondary_columns = st.columns(4)
     with secondary_columns[0]:
         st.metric("平均成交量", format_volume(volume_avg, display_market))
+        st.markdown('<span class="secondary-metric-marker"></span>', unsafe_allow_html=True)
     with secondary_columns[1]:
         render_max_daily_amount_card(format_amount(max_daily_amount, display_market), max_daily_amount_date)
     with secondary_columns[2]:
         st.metric("年化波动率", volatility_label)
+        st.markdown('<span class="secondary-metric-marker"></span>', unsafe_allow_html=True)
     with secondary_columns[3]:
         st.metric("总市值", format_market_cap(market_cap, display_market))
+        st.markdown('<span class="secondary-metric-marker"></span>', unsafe_allow_html=True)
 
     st.markdown("#### 估值概览")
     valuation_columns = st.columns(3)
@@ -1193,14 +1214,18 @@ if market == "CN":
     if valuation_error:
         st.caption(f"公开估值数据暂不可用：{valuation_error}")
     elif valuation.get("source"):
-        st.caption(
-            f"估值数据来源：{valuation['source']} · {valuation.get('as_of', '')}"
-        )
-        if valuation.get("ttm_net_profit") is not None:
+        valuation_source_note, valuation_profit_note = st.columns([1.45, 1], gap="large")
+        with valuation_source_note:
             st.caption(
-                "TTM 净利润（按最近四个季度财报推算）："
-                f"{format_amount(valuation['ttm_net_profit'], market)}"
+                f"估值数据来源：{valuation['source']} · {valuation.get('as_of', '')}"
             )
+        if valuation.get("ttm_net_profit") is not None:
+            with valuation_profit_note:
+                st.markdown(
+                    '<div class="valuation-note-right">TTM 净利润（最近四个季度）：'
+                    f"{format_amount(valuation['ttm_net_profit'], market)}</div>",
+                    unsafe_allow_html=True,
+                )
 else:
     primary_metric_columns = st.columns(3)
     with primary_metric_columns[0]:
@@ -1218,12 +1243,15 @@ else:
     secondary_metric_columns = st.columns(4)
     with secondary_metric_columns[0]:
         st.metric("平均成交量", format_volume(volume_avg, display_market))
+        st.markdown('<span class="secondary-metric-marker"></span>', unsafe_allow_html=True)
     with secondary_metric_columns[1]:
         render_max_daily_amount_card(format_amount(max_daily_amount, display_market), max_daily_amount_date)
     with secondary_metric_columns[2]:
         st.metric("年化波动率", volatility_label)
+        st.markdown('<span class="secondary-metric-marker"></span>', unsafe_allow_html=True)
     with secondary_metric_columns[3]:
         st.metric("总市值", format_market_cap(market_cap, display_market))
+        st.markdown('<span class="secondary-metric-marker"></span>', unsafe_allow_html=True)
 
 # ============ 主内容区域 ============
 tab1, tab_intraday, tab2, tab3, tab4, tab5 = st.tabs(
@@ -1457,19 +1485,57 @@ with tab4:
 with tab5:
     st.subheader("年度与季度财务报告")
     try:
-            financial_reports = load_financial_reports(ticker, market)
+            financial_reports = load_financial_reports(ticker, market, cache_version=2)
             annual_reports = financial_reports[
                 financial_reports["报告类型"] == "年报"
             ].head(4)
             quarter_reports = financial_reports[
                 financial_reports["报告类型"] != "年报"
             ].head(4)
+            quarter_chart_reports = quarter_reports
+            if market == "CN" and not quarter_reports.empty:
+                quarter_dates = pd.to_datetime(quarter_reports["报告期"])
+                annual_fill_reports = financial_reports[
+                    (financial_reports["报告类型"] == "年报")
+                    & pd.to_datetime(financial_reports["报告期"]).between(
+                        quarter_dates.min(), quarter_dates.max()
+                    )
+                ]
+                quarter_chart_reports = (
+                    pd.concat([quarter_reports, annual_fill_reports], ignore_index=True)
+                    .drop_duplicates(subset=["报告期"], keep="first")
+                    .sort_values("报告期", ascending=False)
+                )
 
             source_note = "；季报指标为报告期累计口径。" if market == "CN" else "；金额按报告币种展示。"
             if market == "KR" and display_market == "US":
                 source_note = f"；金额与每股收益按参考汇率换算为美元（1 美元 = {1 / krw_usd_rate:,.2f} 韩元）。"
             st.caption(f"数据来源：{financial_reports.attrs.get('source', '—')}{source_note}")
-            st.markdown("#### 近四个财年")
+
+            if market == "CN" and (not annual_reports.empty or not quarter_reports.empty):
+                st.markdown("#### 财报趋势")
+                annual_chart_column, quarter_chart_column = st.columns(2)
+                with annual_chart_column:
+                    if not annual_reports.empty:
+                        st.plotly_chart(
+                            plot_financial_report_bars(annual_reports, "年报：营收与净利润"),
+                            width="stretch",
+                            key=f"financial-annual-bars:{ticker}",
+                            config={"displayModeBar": False},
+                        )
+                with quarter_chart_column:
+                    if not quarter_reports.empty:
+                        st.plotly_chart(
+                            plot_financial_report_bars(quarter_chart_reports, "季报趋势（年报补齐第四季度）"),
+                            width="stretch",
+                            key=f"financial-quarter-bars:{ticker}",
+                            config={"displayModeBar": False},
+                        )
+                        if len(quarter_chart_reports) > len(quarter_reports):
+                            st.caption("季度图以年报补齐缺失的第四季度；下方季度表不受影响。")
+
+            annual_heading = f"近{len(annual_reports)}个财年" if not annual_reports.empty else "财年报告"
+            st.markdown(f"#### {annual_heading}")
             if annual_reports.empty:
                 st.info("暂未读取到可展示的年报。")
             else:
@@ -1479,7 +1545,8 @@ with tab5:
                     hide_index=True,
                 )
 
-            st.markdown("#### 最新四个季度")
+            quarter_heading = f"最新{len(quarter_reports)}个季度" if not quarter_reports.empty else "季度报告"
+            st.markdown(f"#### {quarter_heading}")
             if quarter_reports.empty:
                 st.info("暂未读取到可展示的季度报告。")
             else:

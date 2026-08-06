@@ -36,7 +36,30 @@ class _FailingSession:
         return None
 
 
+class _RetryingIndexBreadthSession:
+    def __init__(self):
+        self.calls = 0
+
+    def get(self, *_args, **_kwargs):
+        self.calls += 1
+        if self.calls < 3:
+            raise RuntimeError("temporary Eastmoney connection failure")
+        return _Response({"data": {"f113": 12, "f114": 7, "f115": 2}})
+
+    def close(self):
+        return None
+
+
 class MarketOverviewDataTests(unittest.TestCase):
+    @patch("services.market_overview_data.time.sleep")
+    def test_cn_index_breadth_retries_temporary_provider_failures(self, _sleep):
+        session = _RetryingIndexBreadthSession()
+
+        breadth = overview._fetch_cn_index_breadth("1.000001", session)
+
+        self.assertEqual(breadth, {"up": 12, "down": 7, "flat": 2})
+        self.assertEqual(session.calls, 3)
+
     def test_price_standardization_retains_optional_amount(self):
         frame = _standardize_price_frame(
             pd.DataFrame(
@@ -81,6 +104,7 @@ class MarketOverviewDataTests(unittest.TestCase):
         self.assertEqual(result["amount_change"], 20_000_000.0)
         self.assertEqual(result["amount_change_pct"], 20.0)
 
+    @patch("services.market_overview_data.CN_BREADTH_MINIMUM", 1)
     @patch("services.market_overview_data.requests.Session", return_value=_Session())
     def test_cn_breadth_counts_all_returned_rows(self, _mock_session):
         breadth = overview.fetch_cn_market_breadth()
@@ -102,18 +126,16 @@ class MarketOverviewDataTests(unittest.TestCase):
         self.assertEqual(breadth["up"], 10)
         self.assertIn("上次成功快照", breadth["source"])
 
-    @patch("services.market_overview_data._cached_a_share_universe_breadth", return_value={"up": 12, "flat": 3, "down": 9, "total": 24, "source": "A 股股票池本地快照（非全市场）", "stale": True, "fallback": "watchlist"})
     @patch("services.market_overview_data.time.sleep")
     @patch("services.market_overview_data.requests.Session", return_value=_FailingSession())
-    def test_cn_breadth_falls_back_to_local_watchlist_snapshot(self, _mock_session, _sleep, _cached_breadth):
+    def test_cn_breadth_does_not_mislabel_watchlist_as_full_market(self, _mock_session, _sleep):
         previous = overview._LAST_CN_MARKET_BREADTH
         overview._LAST_CN_MARKET_BREADTH = None
         try:
-            breadth = overview.fetch_cn_market_breadth()
+            with self.assertRaises(overview.DataFetchError):
+                overview.fetch_cn_market_breadth()
         finally:
             overview._LAST_CN_MARKET_BREADTH = previous
-        self.assertEqual(breadth["fallback"], "watchlist")
-        self.assertEqual(breadth["total"], 24)
 
     @patch("services.market_overview_data._screen_count", side_effect=[100, 42, 37])
     def test_us_breadth_derives_flat_count(self, _screen_count):
