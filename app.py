@@ -727,9 +727,26 @@ st.markdown("""
         border-radius: 0.8rem;
         box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
     }
+    [data-testid="stAlert"] [data-testid="stAlertContainer"] {
+        display: flex;
+        align-items: center;
+        min-height: 3.5rem;
+        padding: 0.7rem 1rem;
+        box-sizing: border-box;
+    }
+    [data-testid="stAlert"] [data-testid^="stAlertContent"] {
+        width: 100%;
+    }
+    [data-testid="stAlert"] [data-testid^="stAlertContent"] > div {
+        align-items: center;
+    }
+    [data-testid="stAlert"] [data-testid="stMarkdownContainer"] {
+        margin: 0 !important;
+    }
     [data-testid="stAlert"] [data-testid="stMarkdownContainer"] p {
         margin: 0;
         font-size: 0.9rem;
+        line-height: 1.5;
     }
     [data-testid="stDownloadButton"] button {
         background: linear-gradient(110deg, #0891b2, #2563eb);
