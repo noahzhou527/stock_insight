@@ -9,6 +9,7 @@ import visualization
 import services.market_overview_data as market_overview_data
 
 from config.app_config import configure_page
+from components.styles import load_styles
 from financial_rankings import fetch_latest_quarter_net_profit_ranking
 from market_snapshot import fetch_a_share_market_snapshot, flatten_a_share_universe, rank_snapshot
 from news_fetcher import fetch_recent_financial_news
@@ -178,7 +179,7 @@ def render_market_overview(market: str) -> None:
     hero_col, action_col = st.columns([5, 1])
     with hero_col:
         st.markdown(
-            f'<div class="overview-hero"><h1>{market_name}市场概览</h1><p>{overview_description}</p></div>',
+            f'<div class="overview-hero"><span class="overview-eyebrow">MARKET PULSE</span><h1>{market_name}市场概览</h1><p>{overview_description}</p></div>',
             unsafe_allow_html=True,
         )
     if action_col.button("刷新数据", key=f"refresh-market-overview:{market}", width="stretch"):
@@ -232,62 +233,11 @@ def render_market_overview(market: str) -> None:
 def render_market_overview_page() -> None:
     """Standalone Streamlit page served at /market_overviews."""
     configure_page()
+    load_styles("market_overview.css")
     st.markdown(
-        """
-        <style>
-        :root { --surface:#0e1727; --surface-2:#111d30; --line:#223149; --ink:#edf5ff; --muted:#8291a8; --cyan:#22d3ee; }
-        .stApp { background: radial-gradient(circle at 55% -15%, rgba(34,211,238,.08), transparent 34rem), #070b14; color: var(--ink); }
-        [data-testid="stMainBlockContainer"] { max-width: 1440px; padding-top: 3rem; padding-bottom: 5rem; }
-        .main-header { color: var(--ink); font-size: 2rem; font-weight: 760; letter-spacing: -.035em; margin: 0 0 1.35rem; }
-        .overview-hero span, .section-title span { color: var(--cyan); font-size:.7rem; font-weight:800; letter-spacing:.14em; }
-        .overview-hero h1 { color:var(--ink); font-size:2rem; letter-spacing:-.035em; margin:0 0 .15rem; }
-        .overview-hero p { color:var(--muted); margin:0; font-size:.88rem; }
-        .section-title { margin:2rem 0 .85rem; }
-        .section-title h3 { color:var(--ink); font-size:1.28rem; margin:0; letter-spacing:-.02em; }
-        .index-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:1rem; }
-        .index-card { position:relative; min-height:15.4rem; padding:1.25rem; overflow:hidden; border:1px solid var(--line); border-radius:1rem; background:linear-gradient(145deg,rgba(17,29,48,.97),rgba(10,18,31,.98)); box-shadow:0 16px 40px rgba(0,0,0,.18); }
-        .index-card::before { content:""; position:absolute; inset:0 auto auto 0; width:100%; height:2px; background:var(--accent,#64748b); }
-        .market-cn .index-up { --accent:#fb7185; } .market-cn .index-down { --accent:#2dd4bf; }
-        .market-us .index-up { --accent:#2dd4bf; } .market-us .index-down { --accent:#fb7185; }
-        .index-card-head { display:flex; justify-content:space-between; align-items:center; gap:.8rem; }
-        .index-card-head strong { color:var(--ink); font-size:1.08rem; }
-        .index-card-head span { padding:.2rem .48rem; color:#67e8f9; background:rgba(34,211,238,.08); border:1px solid rgba(34,211,238,.18); border-radius:.42rem; font:600 .74rem ui-monospace,monospace; }
-        .index-quote-row { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; gap:1rem; margin:.85rem 0 1rem; }
-        .index-price { margin:0 0 .15rem; color:var(--ink); font-size:2rem; font-weight:680; letter-spacing:-.045em; }
-        .index-change { display:inline-flex; padding:.25rem .55rem; color:var(--accent); background:color-mix(in srgb,var(--accent) 12%,transparent); border-radius:999px; font-size:.82rem; font-weight:700; }
-        .index-breadth-summary { min-width:9.6rem; padding:0 0 .2rem; text-align:right; }
-        .index-breadth-summary small { display:block; margin-bottom:.3rem; color:var(--muted); font-size:.69rem; }
-        .index-breadth-summary b { display:block; color:#cdd9e8; font-size:.82rem; font-weight:700; white-space:nowrap; }
-        .index-details { display:grid; grid-template-columns:1fr 1fr; gap:.65rem; margin:0 0 1rem; }
-        .index-details div { padding:.65rem .72rem; border:1px solid rgba(34,49,73,.78); border-radius:.68rem; background:rgba(6,12,22,.42); }
-        .index-details small { display:block; color:var(--muted); font-size:.69rem; margin-bottom:.22rem; }
-        .index-details b { display:block; overflow:hidden; color:#cdd9e8; font-size:.78rem; font-weight:650; text-overflow:ellipsis; white-space:nowrap; }
-        .constituent-up { color:#fb7185; } .constituent-down { color:#2dd4bf; }
-        .index-meta { display:flex; gap:.4rem; position:absolute; left:1.25rem; right:1.25rem; bottom:1rem; color:#6f8098; font-size:.7rem; }
-        .index-card-error { min-height:8rem; } .index-error { color:#fb7185; margin-top:1.2rem; font-size:.82rem; }
-        .breadth-panel { padding:1.1rem 1.2rem; border:1px solid var(--line); border-radius:1rem; background:linear-gradient(145deg,rgba(17,29,48,.95),rgba(10,18,31,.98)); }
-        .breadth-summary { display:grid; grid-template-columns:repeat(4,1fr); gap:.7rem; }
-        .breadth-stat { padding:.65rem .8rem; border-right:1px solid var(--line); }
-        .breadth-stat:last-child { border-right:0; }
-        .breadth-stat small,.breadth-stat span { display:block; color:var(--muted); font-size:.7rem; }
-        .breadth-stat strong { display:block; color:var(--ink); font-size:1.55rem; line-height:1.25; letter-spacing:-.035em; }
-        .market-cn .stat-up strong,.market-cn .stat-up span,.market-us .stat-down strong,.market-us .stat-down span { color:#fb7185; }
-        .market-cn .stat-down strong,.market-cn .stat-down span,.market-us .stat-up strong,.market-us .stat-up span { color:#2dd4bf; }
-        .breadth-bar { display:flex; height:.48rem; margin:1rem 0 .7rem; overflow:hidden; border-radius:999px; background:#1e293b; }
-        .market-cn .bar-up,.market-us .bar-down { background:#fb7185; } .market-cn .bar-down,.market-us .bar-up { background:#2dd4bf; } .bar-flat { background:#64748b; }
-        .breadth-source { color:#718198; font-size:.7rem; }
-        .trade-date { display:flex; align-items:center; justify-content:flex-end; gap:.55rem; min-height:4.2rem; padding-top:1.35rem; }
-        .trade-date small { color:var(--muted); } .trade-date strong { color:var(--ink); } .trade-date span { padding:.2rem .48rem; color:#67e8f9; background:rgba(34,211,238,.08); border-radius:999px; font-size:.7rem; }
-        [data-testid="stPlotlyChart"] { overflow:hidden; border:1px solid var(--line); border-radius:1rem; box-shadow:0 16px 42px rgba(0,0,0,.18); }
-        div[data-testid="stSegmentedControl"] [data-baseweb="button-group"] { padding:.25rem; background:#0b1423; border:1px solid var(--line); border-radius:.8rem; }
-        .stButton>button { margin-top:.55rem; border-color:var(--line); border-radius:.7rem; background:var(--surface); color:#dbe8f7; }
-        @media(max-width:1350px){ .index-grid{grid-template-columns:repeat(2,minmax(0,1fr));} }
-        @media(max-width:680px){ .index-grid,.breadth-summary{grid-template-columns:1fr;} .breadth-stat{border-right:0;border-bottom:1px solid var(--line);} .index-details{grid-template-columns:1fr;} .index-quote-row{grid-template-columns:1fr;} .index-breadth-summary{text-align:left;} }
-        </style>
-        """,
+        '<div class="overview-brand"><strong>Stock Insight</strong><span>Market Overview</span></div>',
         unsafe_allow_html=True,
     )
-    st.markdown('<div class="main-header">Stock Insight · 市场概览</div>', unsafe_allow_html=True)
     market_label = st.segmented_control(
         "市场",
         ["A股", "美股", "韩股 KOSPI"],

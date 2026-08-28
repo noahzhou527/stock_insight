@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pandas as pd
 
-from data_fetcher import _financial_amount_to_yuan, fetch_a_share_financial_reports
+from data_fetcher import DataFetchError, _financial_amount_to_yuan, fetch_a_share_financial_reports
 
 
 def _percent(value) -> float | None:
@@ -46,3 +46,34 @@ def fetch_latest_quarter_net_profit_ranking(stocks: list[dict]) -> pd.DataFrame:
     result = result.sort_values("最新季度净利润", ascending=False, na_position="last", kind="mergesort").reset_index(drop=True)
     result.insert(0, "排名", result.index + 1)
     return result
+
+
+def _annual_comparison_row(stock: dict, reports: pd.DataFrame) -> dict:
+    annual_reports = reports[reports["报告类型"] == "年报"]
+    if annual_reports.empty:
+        raise DataFetchError("annual_financials_empty", "未提供年度报告")
+    latest = annual_reports.sort_values("报告期", ascending=False).iloc[0]
+    revenue = _financial_amount_to_yuan(latest["营业总收入"])
+    profit = _financial_amount_to_yuan(latest["净利润"])
+    margin = profit / revenue * 100 if revenue and profit is not None else None
+    return {
+        **stock,
+        "报告期": latest["报告期"],
+        "营收": revenue,
+        "净利润": profit,
+        "产品表现代理": margin,
+    }
+
+
+def _peer_comparison_row(stock: dict) -> dict:
+    try:
+        return _annual_comparison_row(stock, fetch_a_share_financial_reports(stock["ticker"]))
+    except Exception:
+        return {**stock, "报告期": None, "营收": None, "净利润": None, "产品表现代理": None}
+
+
+def fetch_peer_comparison(stocks: list[dict]) -> pd.DataFrame:
+    """Fetch latest annual revenue, profit and net-margin proxy for peer stocks."""
+    with ThreadPoolExecutor(max_workers=min(6, len(stocks))) as executor:
+        rows = list(executor.map(_peer_comparison_row, stocks))
+    return pd.DataFrame(rows)
