@@ -83,16 +83,12 @@ def chart_unit(metric: str, market: str = "CN") -> tuple[float, str]:
 
 def format_statistics(frame: pd.DataFrame, market: str = "CN") -> pd.DataFrame:
     """Return a localized descriptive-statistics table for the data-details view."""
-    summary = frame.describe().round(2)
+    summary = frame.describe().drop(index="count", errors="ignore").round(2)
     for column, formatter in (("Volume", format_volume), ("Amount", format_amount)):
         if column in summary:
-            summary[column] = [
-                f"{value:.0f}" if index == "count" else formatter(value, market)
-                for index, value in summary[column].items()
-            ]
+            summary[column] = [formatter(value, market) for value in summary[column]]
     summary.index = summary.index.map(
         {
-            "count": "数量",
             "mean": "平均值",
             "std": "标准差",
             "min": "最小值",

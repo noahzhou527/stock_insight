@@ -1471,6 +1471,7 @@ with tab3:
 
     # 数据统计
     st.subheader("数据统计摘要")
+    st.caption(f"共 {len(df)} 个交易日")
     st.dataframe(
         format_statistics(df, display_market),
         width="stretch",

@@ -25,7 +25,8 @@ class FormatterTests(unittest.TestCase):
             "CN",
         )
 
-        self.assertEqual(summary.index.tolist()[0], "数量")
+        self.assertEqual(summary.index.tolist()[0], "平均值")
+        self.assertNotIn("数量", summary.index)
         self.assertIn("开盘价", summary.columns)
         self.assertEqual(summary.loc["平均值", "成交量"], "1.50万股")
         self.assertEqual(summary.loc["平均值", "成交额"], "1.50亿元")

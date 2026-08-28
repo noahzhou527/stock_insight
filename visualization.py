@@ -128,6 +128,32 @@ def _trading_day_rangebreaks(index: pd.Index) -> list:
     return breaks
 
 
+def _intraday_axis_config(index: pd.Index, market: str) -> dict:
+    """Return a full regular-session axis so partial days keep their true width."""
+    trade_day = pd.Timestamp(index[-1]).normalize()
+    market = market.upper()
+    sessions = {
+        "CN": ((9, 30), (15, 0), [(9, 30), (10, 30), (13, 0), (14, 0), (15, 0)]),
+        "US": ((9, 30), (16, 0), [(9, 30), (11, 0), (12, 30), (14, 0), (16, 0)]),
+        "KR": ((9, 0), (15, 30), [(9, 0), (10, 30), (12, 0), (13, 30), (15, 30)]),
+    }
+    session_start, session_end, tick_times = sessions.get(market, sessions["US"])
+
+    def at(hour_minute: tuple[int, int]) -> pd.Timestamp:
+        hour, minute = hour_minute
+        return trade_day + pd.Timedelta(hours=hour, minutes=minute)
+
+    tick_text = [f"{hour:02d}:{minute:02d}" for hour, minute in tick_times]
+    if market == "CN":
+        tick_text[2] = "11:30 / 13:00"
+    return {
+        "range": [at(session_start), at(session_end)],
+        "tickvals": [at(value) for value in tick_times],
+        "ticktext": tick_text,
+        "rangebreaks": [dict(bounds=[11.5, 13], pattern="hour")] if market == "CN" else [],
+    }
+
+
 def plot_candlestick(
     df: pd.DataFrame,
     ma_periods: list = None,
@@ -382,24 +408,16 @@ def plot_intraday(
         if "Amount" in df.columns
         else df["Price"] * df["Volume"]
     )
-    is_up_day = float(df["Price"].iloc[-1]) >= pre_close
-    price_color = up_color if is_up_day else down_color
-    price_fill = (
-        "rgba(229, 57, 53, 0.10)"
-        if is_up_day and is_a_share
-        else "rgba(30, 157, 85, 0.10)"
-        if is_a_share
-        else "rgba(22, 160, 133, 0.10)"
-        if is_up_day
-        else "rgba(231, 76, 60, 0.10)"
-    )
+    price_color = "#35a7ff"
+    price_fill = "rgba(53, 167, 255, 0.08)"
     high_index = price_change_pct.idxmax()
     low_index = price_change_pct.idxmin()
     high_pct = float(price_change_pct.loc[high_index])
     low_pct = float(price_change_pct.loc[low_index])
+    previous_prices = df["Price"].shift(1).fillna(pre_close)
     volume_colors = [
-        up_color if price >= pre_close else down_color
-        for price in df["Price"]
+        up_color if price >= previous else down_color
+        for price, previous in zip(df["Price"], previous_prices)
     ]
     volume_scale, volume_chart_unit = chart_unit("volume", market)
     amount_scale, amount_chart_unit = chart_unit("amount", market)
@@ -469,6 +487,7 @@ def plot_intraday(
             text=[f"最高 {high_pct:+.2f}%"],
             textposition="top center",
             textfont=dict(color=up_color, size=12),
+            cliponaxis=False,
             showlegend=False,
             hovertemplate=(
                 f"日内最高: {currency_symbol}%{{y:.2f}}<br>涨跌幅: {high_pct:+.2f}%"
@@ -488,6 +507,7 @@ def plot_intraday(
             text=[f"最低 {low_pct:+.2f}%"],
             textposition="bottom center",
             textfont=dict(color=down_color, size=12),
+            cliponaxis=False,
             showlegend=False,
             hovertemplate=(
                 f"日内最低: {currency_symbol}%{{y:.2f}}<br>涨跌幅: {low_pct:+.2f}%"
@@ -539,10 +559,12 @@ def plot_intraday(
         row=2,
         col=1,
     )
-    price_min = min(float(df["Price"].min()), pre_close)
-    price_max = max(float(df["Price"].max()), pre_close)
-    price_padding = max((price_max - price_min) * 0.08, abs(pre_close) * 0.002)
-    price_range = [price_min - price_padding, price_max + price_padding]
+    max_deviation = max(
+        abs(float(df["Price"].min()) - pre_close),
+        abs(float(df["Price"].max()) - pre_close),
+    )
+    price_span = max(max_deviation * 1.08, abs(pre_close) * 0.002)
+    price_range = [pre_close - price_span, pre_close + price_span]
     pct_range = [
         (price_range[0] / pre_close - 1) * 100,
         (price_range[1] / pre_close - 1) * 100,
@@ -552,7 +574,7 @@ def plot_intraday(
         template="plotly_dark",
         height=620,
         hovermode="x unified",
-        margin=dict(l=35, r=25, t=95, b=35),
+        margin=dict(l=35, r=25, t=115, b=45),
         legend=dict(
             orientation="h",
             yanchor="bottom",
@@ -565,12 +587,13 @@ def plot_intraday(
         paper_bgcolor=CHART_BG,
         bargap=0.08,
     )
-    rangebreaks = []
-    if market == "CN":
-        rangebreaks.append(dict(bounds=[11.5, 13], pattern="hour"))
+    intraday_axis = _intraday_axis_config(df.index, market)
     fig.update_xaxes(
-        rangebreaks=rangebreaks,
-        tickformat="%H:%M",
+        range=intraday_axis["range"],
+        rangebreaks=intraday_axis["rangebreaks"],
+        tickmode="array",
+        tickvals=intraday_axis["tickvals"],
+        ticktext=intraday_axis["ticktext"],
         gridcolor=GRID_COLOR,
         showspikes=True,
         spikemode="across",
