@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 import streamlit as st
 
-from config.app_config import KR_TICKER_OPTIONS, US_TICKER_OPTIONS
+from app_config import KR_TICKER_OPTIONS, US_TICKER_OPTIONS
 
 
 @dataclass(frozen=True)

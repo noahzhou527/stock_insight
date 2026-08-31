@@ -31,10 +31,11 @@ Stock Insight currently supports:
 ```text
 stock_insight/
 |-- app.py                 # Main Streamlit application
-|-- config/                # App settings, page setup, and shared constants
-|-- components/            # Reusable Streamlit controls and presentation components
-|-- pages/                 # Top-level page renderers (news and A-share rankings)
+|-- pages/                 # Streamlit multi-page routes, including market overview
 |-- services/              # Cached data-access and data-range services
+|-- app_config.py          # App settings, page setup, and shared constants
+|-- sidebar.py             # Sidebar controls
+|-- *_view.py              # Financial report and investment insight views
 |-- data_fetcher.py        # Yahoo Finance and Tonghuashun data acquisition
 |-- market_snapshot.py     # Batch A-share rankings and snapshot cache
 |-- news_fetcher.py        # Three-source financial-news aggregation
@@ -46,6 +47,7 @@ stock_insight/
 |-- .streamlit/            # Streamlit configuration and secrets template
 |-- assets/                # Static assets
 |-- data/                  # Local data files
+|-- tests/                 # Five topic-based regression test modules
 `-- README.md
 ```
 
@@ -85,6 +87,16 @@ If the Windows `streamlit.exe` launcher points to an old virtual environment, us
 
 ```bash
 python -m streamlit run app.py
+```
+
+## Tests
+
+Tests are grouped by responsibility instead of by individual feature:
+`business_rules`, `data_fetcher`, `market_data`, `news_fetcher`, and
+`visualization`.
+
+```bash
+python -m unittest discover -s tests -v
 ```
 
 ## Local Cache Retention Policy

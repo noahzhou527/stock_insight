@@ -1,3 +1,5 @@
+"""Application settings and market configuration."""
+
 from __future__ import annotations
 
 import os

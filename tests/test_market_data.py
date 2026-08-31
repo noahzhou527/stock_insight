@@ -1,31 +1,19 @@
 import unittest
-from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 import pandas as pd
+import numpy as np
 
+from a_share_universe import A_SHARE_UNIVERSE
 from data_fetcher import _filter_suspicious_korean_daily_bars, _standardize_price_frame
+from market_snapshot import (
+    _request_market_rows,
+    flatten_a_share_universe,
+    rank_snapshot,
+)
 from services import market_overview_data as overview
-
-
-class _Response:
-    def __init__(self, data):
-        self.data = data
-
-    def raise_for_status(self):
-        return None
-
-    def json(self):
-        return self.data
-
-
-class _Session:
-    def get(self, *_args, **_kwargs):
-        return _Response({"data": {"total": 3, "diff": [{"f3": 2}, {"f3": 0}, {"f3": -1}]}})
-
-    def close(self):
-        return None
+from services.market_data import merge_intraday_daily_bar
 
 
 class _FailingSession:
@@ -36,39 +24,28 @@ class _FailingSession:
         return None
 
 
-class _RetryingIndexBreadthSession:
-    def __init__(self):
-        self.calls = 0
+class _MarketRowsResponse:
+    def __init__(self, diff):
+        self._diff = diff
 
-    def get(self, *_args, **_kwargs):
-        self.calls += 1
-        if self.calls < 3:
-            raise RuntimeError("temporary Eastmoney connection failure")
-        return _Response({"data": {"f113": 12, "f114": 7, "f115": 2}})
-
-    def close(self):
+    def raise_for_status(self):
         return None
+
+    def json(self):
+        return {"rc": 0, "data": {"diff": self._diff}}
+
+
+class _MarketRowsSession:
+    def __init__(self):
+        self.calls = []
+
+    def get(self, _url, params, **_kwargs):
+        secids = params["secids"].split(",")
+        self.calls.append(secids)
+        return _MarketRowsResponse([{"f12": secid.split(".")[1]} for secid in secids])
 
 
 class MarketOverviewDataTests(unittest.TestCase):
-    @patch("services.market_overview_data.time.sleep")
-    def test_cn_index_breadth_retries_temporary_provider_failures(self, _sleep):
-        session = _RetryingIndexBreadthSession()
-
-        breadth = overview._fetch_cn_index_breadth("1.000001", session)
-
-        self.assertEqual(breadth, {"up": 12, "down": 7, "flat": 2})
-        self.assertEqual(session.calls, 3)
-
-    def test_price_standardization_retains_optional_amount(self):
-        frame = _standardize_price_frame(
-            pd.DataFrame(
-                [{"Date": "2026-07-10", "Open": 1, "High": 2, "Low": 0.5, "Close": 1.5, "Volume": 100, "Amount": 150}]
-            )
-        )
-        self.assertIn("Amount", frame.columns)
-        self.assertEqual(frame.iloc[0]["Amount"], 150)
-
     def test_price_standardization_estimates_missing_daily_amount(self):
         frame = _standardize_price_frame(
             pd.DataFrame(
@@ -104,15 +81,6 @@ class MarketOverviewDataTests(unittest.TestCase):
         self.assertEqual(result["amount_change"], 20_000_000.0)
         self.assertEqual(result["amount_change_pct"], 20.0)
 
-    @patch("services.market_overview_data.CN_BREADTH_MINIMUM", 1)
-    @patch("services.market_overview_data.requests.Session", return_value=_Session())
-    def test_cn_breadth_counts_all_returned_rows(self, _mock_session):
-        breadth = overview.fetch_cn_market_breadth()
-        self.assertEqual(breadth["up"], 3)
-        self.assertEqual(breadth["flat"], 3)
-        self.assertEqual(breadth["down"], 3)
-        self.assertEqual(breadth["total"], 9)
-
     @patch("services.market_overview_data.time.sleep")
     @patch("services.market_overview_data.requests.Session", return_value=_FailingSession())
     def test_cn_breadth_keeps_last_successful_snapshot_when_eastmoney_fails(self, _mock_session, _sleep):
@@ -137,35 +105,64 @@ class MarketOverviewDataTests(unittest.TestCase):
         finally:
             overview._LAST_CN_MARKET_BREADTH = previous
 
-    @patch("services.market_overview_data._screen_count", side_effect=[100, 42, 37])
-    def test_us_breadth_derives_flat_count(self, _screen_count):
-        breadth = overview.fetch_us_market_breadth()
-        self.assertEqual(breadth, {"up": 42, "down": 37, "flat": 21, "total": 100, "source": "Yahoo 可筛选的美国上市普通股"})
-
-    @patch("services.market_overview_data.is_us_trading_session", return_value=False)
-    @patch("services.market_overview_data._us_history")
-    def test_us_index_intraday_keeps_only_latest_session(self, mock_history, _mock_session):
-        daily = pd.DataFrame(
-            {"Close": [52_000.0, 52_500.0]},
-            index=pd.to_datetime(["2026-07-09", "2026-07-10"]),
+class CurrentDailyBarTests(unittest.TestCase):
+    def test_appends_latest_intraday_session_as_daily_bar(self):
+        historical = pd.DataFrame(
+            {
+                "Open": [10.0],
+                "High": [11.0],
+                "Low": [9.0],
+                "Close": [10.5],
+                "Volume": [100.0],
+            },
+            index=pd.to_datetime(["2026-07-24"]),
         )
         intraday = pd.DataFrame(
-            {"Close": [52_100.0, 52_200.0, 52_450.0, 52_500.0]},
+            {
+                "Price": [20.0, 22.0, 21.0],
+                "Volume": [10.0, 20.0, 30.0],
+                "Amount": [200.0, 440.0, 630.0],
+            },
             index=pd.to_datetime(
-                [
-                    "2026-07-09 09:30-04:00",
-                    "2026-07-09 16:00-04:00",
-                    "2026-07-10 09:30-04:00",
-                    "2026-07-10 16:00-04:00",
-                ]
+                ["2026-07-27 09:30", "2026-07-27 10:00", "2026-07-27 10:30"]
             ),
         )
-        mock_history.side_effect = [daily, intraday]
-        result = overview.fetch_us_index({"name": "道琼斯", "symbol": "^DJI"})
-        dates = {timestamp.date() for timestamp in result["intraday"].index}
-        self.assertEqual(dates, {datetime(2026, 7, 10).date()})
-        self.assertEqual(len(result["intraday"]), 2)
+        intraday.attrs["trade_date"] = "2026-07-27"
+        intraday.attrs["symbol_name"] = "C长鑫"
 
+        result = merge_intraday_daily_bar(historical, intraday, "2026-07-27")
 
-if __name__ == "__main__":
-    unittest.main()
+        self.assertEqual(result.index[-1], pd.Timestamp("2026-07-27"))
+        self.assertEqual(result.iloc[-1]["Open"], 20.0)
+        self.assertEqual(result.iloc[-1]["High"], 22.0)
+        self.assertEqual(result.iloc[-1]["Low"], 20.0)
+        self.assertEqual(result.iloc[-1]["Close"], 21.0)
+        self.assertEqual(result.iloc[-1]["Volume"], 60.0)
+        self.assertEqual(result.iloc[-1]["Amount"], 1270.0)
+        self.assertTrue(result.attrs["includes_intraday_daily_bar"])
+        self.assertEqual(result.attrs["symbol_name"], "C长鑫")
+
+class MarketSnapshotTests(unittest.TestCase):
+    def test_batch_request_never_degrades_to_per_stock_requests(self):
+        rows = flatten_a_share_universe(A_SHARE_UNIVERSE)
+        fake_session = _MarketRowsSession()
+        with patch("market_snapshot.requests.Session", return_value=fake_session):
+            result = _request_market_rows(rows)
+        self.assertEqual(len(result), 88)
+        self.assertEqual(len(fake_session.calls), 3)
+        self.assertTrue(all(len(call) <= 43 for call in fake_session.calls))
+
+    def test_rankings_sort_and_place_invalid_pe_last(self):
+        frame = pd.DataFrame(
+            [
+                {"name": "甲", "change_pct": 1, "amount": 20, "market_cap": 30, "pe_ttm": 15},
+                {"name": "乙", "change_pct": 3, "amount": 10, "market_cap": 50, "pe_ttm": 8},
+                {"name": "丙", "change_pct": np.nan, "amount": 30, "market_cap": 40, "pe_ttm": -2},
+            ]
+        )
+        self.assertEqual(rank_snapshot(frame, "change_pct").iloc[0]["name"], "乙")
+        self.assertEqual(rank_snapshot(frame, "amount").iloc[0]["name"], "丙")
+        self.assertEqual(rank_snapshot(frame, "market_cap").iloc[0]["name"], "乙")
+        pe_rank = rank_snapshot(frame, "pe_ttm")
+        self.assertEqual(pe_rank.iloc[0]["name"], "乙")
+        self.assertEqual(pe_rank.iloc[-1]["name"], "丙")

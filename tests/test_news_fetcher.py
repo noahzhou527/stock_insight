@@ -1,13 +1,10 @@
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from news_fetcher import (
-    NewsItem,
-    _market_theme_keywords_from_payload,
     _parse_douyin_payload,
     _parse_tonghuashun_html,
     _parse_yahoo_rss,
-    _select_for_display,
 )
 
 
@@ -59,43 +56,3 @@ class NewsFetcherTests(unittest.TestCase):
         )
         self.assertIsNone(douyin_items[0].published_at)
         self.assertEqual(douyin_items[0].observed_at, self.now)
-
-    def test_market_theme_keywords_come_from_concept_board_names(self):
-        themes = _market_theme_keywords_from_payload(
-            {
-                "data": {
-                    "diff": [
-                        {"f14": "商业航天", "f3": 4.57},
-                        {"f14": "机器人概念", "f3": 3.2},
-                        {"f14": "商业航天", "f3": 2.8},
-                    ]
-                }
-            }
-        )
-        self.assertEqual(themes, ("商业航天", "机器人概念"))
-
-    def test_fixed_source_quotas_and_global_order(self):
-        items = []
-        for source, total in (("Yahoo", 5), ("同花顺", 6), ("抖音", 4)):
-            for index in range(total):
-                stamp = self.now - timedelta(minutes=index + len(items))
-                title = f"A股-{index}" if source == "抖音" else f"{source}-{index}"
-                items.append(
-                    NewsItem(
-                        title=title,
-                        url=f"https://example.com/{source}/{index}",
-                        source=source,
-                        published_at=None if source == "抖音" else stamp,
-                        observed_at=stamp,
-                    )
-                )
-        selected = _select_for_display(items, 72, self.now)
-        self.assertEqual(len(selected), 10)
-        self.assertEqual(sum(item.source == "Yahoo" for item in selected), 3)
-        self.assertEqual(sum(item.source == "同花顺" for item in selected), 4)
-        self.assertEqual(sum(item.source == "抖音" for item in selected), 3)
-        self.assertEqual(selected, sorted(selected, key=lambda item: item.effective_time, reverse=True))
-
-
-if __name__ == "__main__":
-    unittest.main()

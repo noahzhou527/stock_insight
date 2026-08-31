@@ -1,3 +1,5 @@
+"""Standalone market overview page and shared market renderers."""
+
 from __future__ import annotations
 
 import html
@@ -8,8 +10,8 @@ import streamlit as st
 import visualization
 import services.market_overview_data as market_overview_data
 
-from config.app_config import configure_page
-from components.styles import load_styles
+from app_config import configure_page
+from styles import load_styles
 from financial_rankings import fetch_latest_quarter_net_profit_ranking
 from market_snapshot import fetch_a_share_market_snapshot, flatten_a_share_universe, rank_snapshot
 from news_fetcher import fetch_recent_financial_news
@@ -230,9 +232,10 @@ def render_market_overview(market: str) -> None:
     )
 
 
-def render_market_overview_page() -> None:
+def render_market_overview_page(*, configure: bool = True) -> None:
     """Standalone Streamlit page served at /market_overviews."""
-    configure_page()
+    if configure:
+        configure_page()
     load_styles("market_overview.css")
     st.markdown(
         '<div class="overview-brand"><strong>Stock Insight</strong><span>Market Overview</span></div>',

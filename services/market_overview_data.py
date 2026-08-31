@@ -10,7 +10,7 @@ import yfinance as yf
 from curl_cffi import requests
 from yfinance.screener.query import EquityQuery
 
-from config.app_config import CN_INDEX_CONFIG, KR_INDEX_CONFIG, US_INDEX_CONFIG
+from app_config import CN_INDEX_CONFIG, KR_INDEX_CONFIG, US_INDEX_CONFIG
 from data_fetcher import DataFetchError, _clear_broken_local_proxy, _create_yahoo_session, _parse_jsonp
 
 

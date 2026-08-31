@@ -3,7 +3,7 @@ from pathlib import Path
 import streamlit as st
 
 
-_ASSET_DIR = Path(__file__).resolve().parents[1] / "assets"
+_ASSET_DIR = Path(__file__).resolve().parent / "assets"
 
 
 def load_styles(*names: str) -> None:

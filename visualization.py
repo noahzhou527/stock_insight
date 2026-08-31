@@ -757,7 +757,7 @@ def plot_rsi(df: pd.DataFrame, period: int) -> go.Figure:
         title=f'Relative Strength Index (RSI) - Period: {period}',
         yaxis_title='RSI Value',
         template='plotly_dark',
-        height=400,
+        height=600,
         yaxis=dict(range=[0, 100])
     )
     fig.update_xaxes(rangebreaks=_trading_day_rangebreaks(df.index))

@@ -27,9 +27,9 @@ from new_listing import (
     pad_new_listing_chart,
 )
 from visualization import plot_candlestick, plot_intraday, plot_rsi, plot_macd
-from config.app_config import VALUATION_CACHE_VERSION, configure_page, get_ths_access_token
-from components.sidebar import render_sidebar
-from components.styles import load_styles
+from app_config import VALUATION_CACHE_VERSION, configure_page, get_ths_access_token
+from sidebar import render_sidebar
+from styles import load_styles
 from services.market_data import (
     indicator_warmup_start,
     is_market_trading_session,
@@ -40,8 +40,8 @@ from services.market_data import (
     load_valuation,
     trim_to_display_range,
 )
-from views.investment_insights import render_investment_insights
-from views.financial_reports import render_financial_reports
+from investment_insights_view import render_investment_insights
+from financial_reports_view import render_financial_reports
 
 # Streamlit reruns the app in the same process, so refresh the separately
 # maintained stock universe before building sidebar options.
@@ -85,7 +85,7 @@ with st.container(key="top_navigation"):
     )
     page = st.segmented_control(
         "主导航",
-        ["行情分析", "指标说明", "新闻热点"],
+        ["行情分析", "市场总览", "指标说明", "新闻热点"],
         default="行情分析",
         key="page_navigation",
         label_visibility="collapsed",
@@ -122,6 +122,10 @@ with st.container(key="top_navigation"):
             )
 
 # 非行情页面在构建侧栏及请求市场数据前完成路由。
+if page == "市场总览":
+    st.markdown("---")
+    market_overviews.render_market_overview_page(configure=False)
+    st.stop()
 if page == "指标说明":
     st.markdown("---")
     render_indicator_help()
