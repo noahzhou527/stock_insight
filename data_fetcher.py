@@ -10,6 +10,7 @@ import os
 import json
 import re
 from datetime import datetime, timedelta
+from functools import lru_cache
 from io import StringIO
 from pathlib import Path
 from curl_cffi import requests
@@ -415,6 +416,19 @@ def _fetch_a_share_ifind_data(
     return df
 
 
+def _covers_requested_range(df: pd.DataFrame, start, end) -> bool:
+    """Require daily history to reach both ends of the requested period."""
+    if df.empty:
+        return False
+    first = pd.Timestamp(df.index.min()).normalize()
+    last = pd.Timestamp(df.index.max()).normalize()
+    return first <= pd.Timestamp(start).normalize() + pd.offsets.BDay(5) and last >= pd.Timestamp(end).normalize() - pd.offsets.BDay(5)
+
+
+def _is_not_listed_error(error: Exception) -> bool:
+    return "not listed" in str(error).lower() or "未上市" in str(error)
+
+
 def fetch_a_share_data(
     ticker: str,
     start_date,
@@ -437,6 +451,7 @@ def fetch_a_share_data(
 
     frames = []
     errors = []
+    used_yahoo_fallback = False
     for year in range(start.year, end.year + 1):
         try:
             frame = _fetch_a_share_year(ticker, year)
@@ -464,12 +479,29 @@ def fetch_a_share_data(
     df = pd.concat(frames)
     df = df[~df.index.duplicated(keep="last")].sort_index()
     df = _filter_date_range(df, start, end)
+    if not _covers_requested_range(df, start, end) and not any(_is_not_listed_error(error) for error in errors):
+        try:
+            yahoo_df = _fetch_from_yahoo(ticker, start, end + pd.Timedelta(days=1))
+        except Exception as error:
+            raise DataFetchError(
+                "incomplete_history",
+                "同花顺返回的日线未覆盖所选日期范围，且备用数据源不可用。",
+                error,
+            ) from error
+        if _covers_requested_range(yahoo_df, start, end):
+            df = _filter_date_range(yahoo_df, start, end)
+            used_yahoo_fallback = True
+        else:
+            raise DataFetchError(
+                "incomplete_history",
+                "数据源未返回完整的所选日期范围，请调整日期后重试。",
+            )
     if df.empty:
         raise DataFetchError(
             "ths_empty_data",
             "同花顺未返回该股票在所选日期范围内的行情。",
         )
-    df.attrs["source"] = "同花顺"
+    df.attrs["source"] = "Yahoo Finance" if used_yahoo_fallback else "同花顺"
     _save_local_cache(ticker, df)
     return df
 
@@ -808,6 +840,53 @@ def _financial_amount_to_yuan(value) -> float | None:
     multiplier = {"万亿": 1e12, "亿": 1e8, "万": 1e4, "元": 1.0, None: 1.0}[match.group(2)]
     amount = float(match.group(1)) * multiplier
     return amount if np.isfinite(amount) else None
+
+
+def _latest_annual_cash_flow_value(payload: dict, metric: str) -> tuple[str | None, float | None]:
+    """Read the newest annual value for one metric from an F10 cash-flow payload."""
+    titles = payload.get("title", [])
+    annual_rows = payload.get("year", [])
+    if not annual_rows:
+        return None, None
+
+    periods = annual_rows[0]
+    for index, title in enumerate(titles):
+        label = title[0] if isinstance(title, list) else title
+        if str(label).lstrip("*") != metric or index >= len(annual_rows):
+            continue
+        values = annual_rows[index]
+        if not periods or not values:
+            return None, None
+        return f"{periods[0]}-12-31", _financial_amount_to_yuan(values[0])
+    return None, None
+
+
+@lru_cache(maxsize=128)
+def fetch_a_share_annual_investment_spending(ticker: str) -> tuple[str | None, float | None]:
+    """Fetch latest annual capital spending from the public F10 cash-flow table."""
+    code = ticker.split(".")[0]
+    session = _create_yahoo_session()
+    try:
+        response = session.get(
+            f"https://basic.10jqka.com.cn/api/stock/finance/{code}_cash.json",
+            headers={"User-Agent": "Mozilla/5.0", "Referer": f"https://basic.10jqka.com.cn/{code}/finance.html"},
+            timeout=20,
+        )
+        response.raise_for_status()
+        outer = response.json()
+        payload = outer.get("flashData", {})
+        if isinstance(payload, str):
+            payload = json.loads(payload)
+        return _latest_annual_cash_flow_value(
+            payload,
+            "购建固定资产、无形资产和其他长期资产支付的现金",
+        )
+    except Exception as error:
+        raise DataFetchError(
+            "ths_cash_flow_failed",
+            "无法从同花顺读取该公司的现金流量表。",
+            error,
+        ) from error
 
 
 def _calculate_ttm_net_profit(periods, net_profit_values) -> float | None:

@@ -23,8 +23,6 @@ from formatters import (
 )
 from new_listing import (
     get_new_listing_state,
-    is_new_listing_history,
-    pad_new_listing_chart,
 )
 from visualization import plot_candlestick, plot_intraday, plot_rsi, plot_macd
 from app_config import VALUATION_CACHE_VERSION, configure_page, get_ths_access_token
@@ -598,12 +596,7 @@ with tab1:
     df_with_ma = trim_to_display_range(df_with_ma, start_date, end_date)
 
     # 绘制K线图
-    chart_df = pad_new_listing_chart(
-        df_with_ma,
-        is_new_listing_history(indicator_history_df, calculation_start_date),
-        start_date,
-        end_date,
-    )
+    chart_df = df_with_ma
     fig = plot_candlestick(
         chart_df,
         ma_periods,
