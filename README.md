@@ -87,6 +87,16 @@ If the Windows `streamlit.exe` launcher points to an old virtual environment, us
 python -m streamlit run app.py
 ```
 
+## Local Cache Retention Policy
+
+`data/cache/` is reusable local project data, not disposable build output. Historical price CSV files and financial-report JSON files should be retained across app runs so previously fetched history can be reused and repeated provider requests can be reduced.
+
+- Do not delete `data/cache/` during routine repository cleanup, dependency cleanup, or Smart Push preparation.
+- When refreshing data, preserve valid historical rows and fetch only the missing or current range whenever the provider workflow supports it.
+- Remove individual cache entries only when they are corrupt, incompatible with a parser change, or explicitly requested by the user. Do not bulk-delete valid history.
+- Financial-report cache expiry is already handled by the application for entries unused for 30 days; manual blanket cleanup is unnecessary.
+- Cache contents remain local and are excluded from Git. The `.gitkeep` exception only preserves the cache directory structure.
+
 ## Deployment
 
 The app can be deployed on Streamlit Community Cloud.
