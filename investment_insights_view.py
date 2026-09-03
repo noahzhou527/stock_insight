@@ -6,6 +6,7 @@ import streamlit as st
 
 import visualization
 from financial_rankings import fetch_peer_comparison
+from styles import render_dataframe
 
 
 def render_investment_insights(
@@ -168,7 +169,7 @@ def render_investment_insights(
                 )
                 financial_figure.update_yaxes(title_text="亿元")
                 st.plotly_chart(
-                    visualization._apply_dark_theme(financial_figure),
+                    visualization._apply_chart_theme(financial_figure),
                     width="stretch",
                     config={"displayModeBar": False},
                 )
@@ -191,14 +192,14 @@ def render_investment_insights(
                 )
                 metric_figure.update_yaxes(title_text=label)
                 st.plotly_chart(
-                    visualization._apply_dark_theme(metric_figure),
+                    visualization._apply_chart_theme(metric_figure),
                     width="stretch",
                     config={"displayModeBar": False},
                 )
             if chart_choice == "产品表现代理":
                 st.caption("代理指标：净利润 ÷ 营收；用于简单横向观察，不代表具体产品参数。")
     
-            st.dataframe(
+            render_dataframe(
                 available_peers.sort_values("营收（亿元）", ascending=False)[
                     ["name", "ticker", "报告期", "营收（亿元）", "净利润（亿元）", "产品表现代理", "资产负债率", "投资支出（亿元）", "投资支出占营收"]
                 ]

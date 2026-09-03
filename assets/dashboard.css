@@ -835,6 +835,63 @@
             min-height: 7.5rem;
         }
     }
+    [data-testid="stSidebar"] [data-testid="stForm"] [data-testid="stTextInput"] [data-testid="InputInstructions"] {
+        display: none;
+    }
+    [data-testid="stMultiSelect"] div:has(> [data-baseweb="tag"]) > div:last-child {
+        width: 1px !important;
+        min-width: 1px !important;
+        flex: 0 0 1px !important;
+    }
+    [data-testid="stMultiSelect"] div:has(> [data-baseweb="tag"]) {
+        overflow: visible !important;
+    }
+    [data-testid="stMultiSelect"] [data-baseweb="tag"] {
+        transform: translateX(0.75rem);
+    }
+    .st-key-theme_toggle {
+        position: fixed;
+        top: 4.15rem;
+        right: 1.5rem;
+        z-index: 1000000;
+        width: 2.55rem;
+    }
+    .st-key-theme_toggle button {
+        width: 2.55rem;
+        height: 2.55rem;
+        min-height: 2.55rem;
+        margin: 0;
+        padding: 0;
+        border: 1px solid #34445a;
+        border-radius: 50%;
+        background: #131d2d;
+        color: #fbbf24;
+        box-shadow: 0 5px 18px rgba(0, 0, 0, 0.28);
+    }
+    .st-key-theme_toggle button:hover {
+        border-color: #fbbf24;
+        background: #1a2638;
+        color: #fde68a;
+    }
+    .st-key-theme_toggle button p {
+        width: 0;
+        overflow: visible;
+        color: transparent !important;
+        font-size: 0;
+    }
+    .st-key-theme_toggle button p::before {
+        content: "☾";
+        display: block;
+        color: #cbd5e1;
+        font-size: 1.28rem;
+        line-height: 1;
+    }
+    @media (max-width: 700px) {
+        .st-key-theme_toggle {
+            top: 3.75rem;
+            right: 0.75rem;
+        }
+    }
     @media (prefers-reduced-motion: reduce) {
         .st-key-data_load_success {
             animation-duration: 0.01ms;

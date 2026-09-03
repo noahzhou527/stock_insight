@@ -9,6 +9,7 @@ import pandas as pd
 import re
 
 from formatters import chart_unit, format_amount, format_volume
+from styles import is_light_theme
 
 
 CHART_BG = "#0d1422"
@@ -18,39 +19,51 @@ TEXT_COLOR = "#cbd7e6"
 MUTED_COLOR = "#7f90a8"
 
 
-def _apply_dark_theme(fig: go.Figure) -> go.Figure:
-    """Apply the dashboard's financial-terminal theme to a Plotly figure."""
+def _apply_chart_theme(fig: go.Figure) -> go.Figure:
+    """Apply the active dashboard theme to a Plotly figure."""
+    light = is_light_theme()
+    paper = "#ffffff" if light else CHART_BG
+    plot = "#f8fafc" if light else PLOT_BG
+    text = "#1e293b" if light else TEXT_COLOR
+    muted = "#64748b" if light else MUTED_COLOR
+    line = "#dbe3ec" if light else "#26384f"
     fig.update_layout(
-        template="plotly_dark",
-        paper_bgcolor=CHART_BG,
-        plot_bgcolor=PLOT_BG,
+        template="plotly_white" if light else "plotly_dark",
+        paper_bgcolor=paper,
+        plot_bgcolor=plot,
         font=dict(
             family='Inter, "Microsoft YaHei", Arial, sans-serif',
-            color=TEXT_COLOR,
+            color=text,
             size=12,
         ),
-        title_font=dict(color="#e8f1fc", size=18),
-        legend=dict(bgcolor="rgba(13, 20, 34, 0.72)", borderwidth=0),
+        title_font=dict(color="#0f172a" if light else "#e8f1fc", size=18),
+        legend=dict(
+            bgcolor="rgba(255, 255, 255, 0.90)" if light else "rgba(13, 20, 34, 0.72)",
+            borderwidth=0,
+            font=dict(color=text),
+            title_font=dict(color=text),
+        ),
         hoverlabel=dict(
-            bgcolor="#111b2c",
-            bordercolor="#26384f",
-            font=dict(color="#e6edf7"),
+            bgcolor="#ffffff" if light else "#111b2c",
+            bordercolor=line,
+            font=dict(color=text),
         ),
     )
     fig.update_xaxes(
-        gridcolor=GRID_COLOR,
-        linecolor="#26384f",
-        tickfont=dict(color=MUTED_COLOR),
-        title_font=dict(color="#9fb0c6"),
-        zerolinecolor="#26384f",
+        gridcolor="#e7edf4" if light else GRID_COLOR,
+        linecolor=line,
+        tickfont=dict(color=muted),
+        title_font=dict(color=muted),
+        zerolinecolor=line,
     )
     fig.update_yaxes(
-        gridcolor=GRID_COLOR,
-        linecolor="#26384f",
-        tickfont=dict(color=MUTED_COLOR),
-        title_font=dict(color="#9fb0c6"),
-        zerolinecolor="#26384f",
+        gridcolor="#e7edf4" if light else GRID_COLOR,
+        linecolor=line,
+        tickfont=dict(color=muted),
+        title_font=dict(color=muted),
+        zerolinecolor=line,
     )
+    fig.update_layout(modebar=dict(color=muted, activecolor="#0891b2" if light else "#67e8f9"))
     return fig
 
 
@@ -112,7 +125,7 @@ def plot_financial_report_bars(
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
     fig.update_yaxes(title_text=unit_label, rangemode="tozero")
-    return _apply_dark_theme(fig)
+    return _apply_chart_theme(fig)
 
 
 def _trading_day_rangebreaks(index: pd.Index) -> list:
@@ -386,7 +399,7 @@ def plot_candlestick(
         tickformat=".2f",
     )
 
-    return _apply_dark_theme(fig)
+    return _apply_chart_theme(fig)
 
 
 def plot_intraday(
@@ -626,7 +639,7 @@ def plot_intraday(
         gridcolor=GRID_COLOR,
         tickformat=".2f",
     )
-    return _apply_dark_theme(fig)
+    return _apply_chart_theme(fig)
 
 
 def plot_index_intraday(
@@ -730,7 +743,7 @@ def plot_index_intraday(
         spikedash="dot",
         spikecolor="#64748b",
     )
-    return _apply_dark_theme(fig)
+    return _apply_chart_theme(fig)
 
 
 def plot_rsi(df: pd.DataFrame, period: int) -> go.Figure:
@@ -762,7 +775,7 @@ def plot_rsi(df: pd.DataFrame, period: int) -> go.Figure:
     )
     fig.update_xaxes(rangebreaks=_trading_day_rangebreaks(df.index))
 
-    return _apply_dark_theme(fig)
+    return _apply_chart_theme(fig)
 
 
 def plot_macd(df: pd.DataFrame) -> go.Figure:
@@ -775,7 +788,7 @@ def plot_macd(df: pd.DataFrame) -> go.Figure:
     # 价格
     fig.add_trace(go.Scatter(
         x=df.index, y=df['Close'],
-        name='Price', line=dict(color='#cbd7e6', width=1.4)
+        name='Price', line=dict(color='#475569' if is_light_theme() else '#cbd7e6', width=1.4)
     ), row=1, col=1)
 
     # MACD
@@ -809,4 +822,4 @@ def plot_macd(df: pd.DataFrame) -> go.Figure:
     fig.update_xaxes(title_text="Date", row=2, col=1)
     fig.update_xaxes(rangebreaks=_trading_day_rangebreaks(df.index))
 
-    return _apply_dark_theme(fig)
+    return _apply_chart_theme(fig)

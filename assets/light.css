@@ -1,0 +1,419 @@
+:root {
+    --brand: #0891b2;
+    --brand-strong: #0369a1;
+    --accent: #7c3aed;
+    --positive: #0f9f8f;
+    --negative: #e11d48;
+    --ink: #172033;
+    --muted: #64748b;
+    --line: #dbe3ec;
+    --line-strong: #c8d3df;
+    --surface: #ffffff;
+    --surface-raised: #f8fafc;
+    --canvas: #f4f6f8;
+    --text-color: #172033;
+    --background-color: #f4f6f8;
+    --secondary-background-color: #ffffff;
+}
+
+.stApp {
+    background:
+        radial-gradient(circle at 50% -8%, rgba(8, 145, 178, 0.09), transparent 34rem),
+        radial-gradient(circle at 100% 16%, rgba(124, 58, 237, 0.05), transparent 28rem),
+        var(--canvas);
+    color: var(--ink);
+}
+[data-testid="stHeader"] {
+    background: rgba(244, 246, 248, 0.82);
+    border-bottom-color: rgba(203, 213, 225, 0.75);
+}
+[data-testid="stSidebar"] {
+    background: rgba(248, 250, 252, 0.98);
+    border-right-color: var(--line);
+}
+[data-testid="stSidebarCollapseButton"] button,
+[data-testid="stSidebarCollapsedControl"] button,
+[data-testid="stSidebarCollapseButton"] svg,
+[data-testid="stSidebarCollapsedControl"] svg {
+    color: #334155 !important;
+    fill: currentColor !important;
+    opacity: 1 !important;
+}
+button[aria-label="Collapse sidebar"],
+button[aria-label="Expand sidebar"],
+button[aria-label="Collapse sidebar"] svg,
+button[aria-label="Expand sidebar"] svg {
+    color: #334155 !important;
+    fill: currentColor !important;
+    opacity: 1 !important;
+}
+[data-testid="stSidebar"] h2,
+[data-testid="stSidebar"] h3,
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
+[data-testid="stSidebar"] label,
+.stApp h1,
+.stApp h2,
+.stApp h3,
+.stApp h4,
+.stApp p,
+.stApp label {
+    color: var(--ink);
+}
+.stApp [data-testid="stWidgetLabel"] p,
+.stApp [data-testid="stCheckbox"] p,
+.stApp [role="switch"] + div,
+.stApp [role="switch"] + div p,
+.stApp [data-testid="stCaptionContainer"],
+.stApp [data-testid="stMarkdownContainer"] em {
+    color: #475569 !important;
+}
+
+.app-hero {
+    border-color: #d5dee8;
+    background:
+        radial-gradient(circle at 82% -40%, rgba(8, 145, 178, 0.13), transparent 22rem),
+        linear-gradient(125deg, #ffffff, #f7fafc);
+    box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
+}
+.app-hero h1 { color: #0f172a; }
+.app-hero p,
+.app-hero-badge { color: #53657a; }
+.app-eyebrow { color: var(--brand); }
+.app-hero-badge {
+    border-color: rgba(15, 159, 143, 0.22);
+    background: rgba(15, 159, 143, 0.07);
+}
+
+.st-key-top_navigation {
+    border-color: #d8e0e9;
+    background: rgba(255, 255, 255, 0.88);
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.07);
+}
+.top-nav-heading,
+.nav-label { color: #334155; }
+.top-nav-heading span:last-child,
+.nav-context::before,
+.metric-section-heading span,
+.valuation-note-right,
+.settlement-note-right { color: #64748b; }
+.st-key-top_navigation [data-testid="stColumn"] {
+    border-color: #dce4ed;
+    background: rgba(248, 250, 252, 0.78);
+}
+.st-key-top_navigation .st-key-page_navigation [data-baseweb="button-group"],
+.st-key-top_navigation .st-key-market_navigation [data-baseweb="button-group"],
+.st-key-top_navigation .st-key-market_view_navigation [data-baseweb="button-group"],
+div[data-testid="stSegmentedControl"] [data-baseweb="button-group"] {
+    border-color: #d7e0ea !important;
+    background: #eef2f6 !important;
+}
+.st-key-top_navigation .st-key-page_navigation button,
+.st-key-top_navigation .st-key-market_navigation button,
+.st-key-top_navigation .st-key-market_view_navigation button,
+div[data-testid="stSegmentedControl"] button,
+button[data-variant="segmented_control"] {
+    background: #f8fafc !important;
+    color: #526277 !important;
+}
+.st-key-top_navigation button:hover,
+div[data-testid="stSegmentedControl"] button:hover {
+    color: #0f172a !important;
+    background: #e8eef5 !important;
+}
+.st-key-top_navigation button[aria-pressed="true"],
+.st-key-top_navigation button[aria-checked="true"],
+.st-key-top_navigation button[data-active="true"],
+.st-key-top_navigation button[data-selected="true"],
+div[data-testid="stSegmentedControl"] button[aria-pressed="true"],
+div[data-testid="stSegmentedControl"] button[aria-checked="true"],
+div[data-testid="stSegmentedControl"] button[data-active="true"],
+button[data-variant="segmented_control"][aria-checked="true"],
+button[data-variant="segmented_control"][data-selected="true"] {
+    color: #075985 !important;
+    background: #e0f2fe !important;
+    box-shadow: inset 0 0 0 1px rgba(8, 145, 178, 0.28) !important;
+}
+.st-key-top_navigation .st-key-page_navigation button[aria-pressed="true"],
+.st-key-top_navigation .st-key-page_navigation button[aria-checked="true"],
+.st-key-top_navigation .st-key-page_navigation button[data-active="true"],
+.st-key-top_navigation .st-key-page_navigation button[data-selected="true"],
+.st-key-top_navigation .st-key-market_navigation button[aria-pressed="true"],
+.st-key-top_navigation .st-key-market_navigation button[aria-checked="true"],
+.st-key-top_navigation .st-key-market_navigation button[data-active="true"],
+.st-key-top_navigation .st-key-market_navigation button[data-selected="true"],
+.st-key-top_navigation .st-key-market_view_navigation button[aria-pressed="true"],
+.st-key-top_navigation .st-key-market_view_navigation button[aria-checked="true"],
+.st-key-top_navigation .st-key-market_view_navigation button[data-active="true"],
+.st-key-top_navigation .st-key-market_view_navigation button[data-selected="true"] {
+    color: #075985 !important;
+    background: #e0f2fe !important;
+    box-shadow: inset 0 0 0 1px rgba(8, 145, 178, 0.28) !important;
+}
+
+[data-testid="stVerticalBlockBorderWrapper"],
+[data-testid="stMetric"],
+.compact-amount-card,
+.indicator-summary-card,
+.rsi-zone-card,
+.pe-formula-card,
+[data-testid="stExpander"],
+[data-testid="stPlotlyChart"],
+[data-testid="stDataFrame"] {
+    border-color: var(--line) !important;
+    background: #ffffff !important;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.07);
+}
+[data-testid="stMetric"]:has([data-testid="stMetricDelta"]) {
+    border-color: rgba(8, 145, 178, 0.24) !important;
+    background: linear-gradient(145deg, #ffffff, #f2fbfd) !important;
+}
+[data-testid="stMetricLabel"],
+.compact-amount-label,
+.compact-amount-date,
+.indicator-summary-card span,
+.rsi-zone-card span,
+.pe-formula-title { color: var(--muted); }
+[data-testid="stMetricValue"],
+.compact-amount-value,
+.indicator-summary-card strong,
+.rsi-zone-card strong,
+.pe-formula,
+.metric-section-heading strong,
+.rsi-formula { color: var(--ink); }
+[data-testid="stMetricDelta"] { background: #eef2f6; }
+
+.stTabs [role="tablist"] {
+    background: linear-gradient(180deg, #f8fafc, #ffffff);
+    border-bottom-color: var(--line);
+}
+.stTabs [role="tab"],
+.stTabs [role="tablist"]::after { color: #64748b; }
+.stTabs [role="tab"]:hover {
+    color: #0f172a;
+    background: rgba(8, 145, 178, 0.07);
+}
+.stTabs [aria-selected="true"] {
+    color: #075985 !important;
+    background: linear-gradient(180deg, rgba(14, 165, 233, 0.13), rgba(14, 165, 233, 0.03)) !important;
+    text-shadow: none;
+}
+
+.stButton > button {
+    border-color: var(--line-strong);
+    background: #ffffff;
+    color: #26364a;
+}
+.stButton > button:hover {
+    border-color: var(--brand);
+    background: #eef8fb;
+    color: #075985;
+}
+[data-testid="stSidebar"] [data-testid="stTextInput"] [data-baseweb="input"],
+[data-testid="stSidebar"] [data-testid="stTextInput"] [data-baseweb="base-input"],
+[data-testid="stSidebar"] [data-testid="stTextInput"] input {
+    border-color: var(--line-strong) !important;
+    background: #ffffff !important;
+    color: #172033 !important;
+    -webkit-text-fill-color: #172033 !important;
+}
+[data-testid="stSidebar"] [data-testid="stTextInput"] input::placeholder {
+    color: #64748b !important;
+    -webkit-text-fill-color: #64748b !important;
+    opacity: 1;
+}
+[data-testid="stSidebar"] [data-testid="stTextInput"] [data-baseweb="input"]:focus-within,
+[data-testid="stSidebar"] [data-testid="stTextInput"] [data-baseweb="base-input"]:focus-within {
+    border-color: var(--brand) !important;
+    outline: none !important;
+    box-shadow: 0 0 0 2px rgba(8, 145, 178, 0.14) !important;
+}
+[data-testid="stSidebar"] [data-testid="stTextInput"] input:focus {
+    border-color: transparent !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+[data-testid="stSidebar"] [data-testid="stFormSubmitButton"] button {
+    border-color: var(--line-strong) !important;
+    background: #ffffff !important;
+    color: #26364a !important;
+}
+[data-testid="stSidebar"] [data-testid="stFormSubmitButton"] button:disabled {
+    border-color: #d7e0ea !important;
+    background: #eef2f6 !important;
+    color: #94a3b8 !important;
+    opacity: 1;
+}
+[data-baseweb="select"],
+[data-baseweb="select"] > div,
+[data-baseweb="input"] > div,
+[data-baseweb="textarea"] > div,
+[data-testid="stDateInput"] input,
+[data-testid="stNumberInput"] input {
+    border-color: var(--line-strong) !important;
+    background-color: #ffffff !important;
+    color: var(--ink) !important;
+}
+[data-testid="stSelectbox"] [role="combobox"],
+[data-testid="stSelectbox"] [role="combobox"] > div,
+[data-testid="stMultiSelect"] [role="combobox"],
+[data-testid="stMultiSelect"] [role="combobox"] > div {
+    border-color: var(--line-strong) !important;
+    background: #ffffff !important;
+    color: var(--ink) !important;
+}
+[data-testid="stSelectbox"] [role="combobox"] *,
+[data-testid="stMultiSelect"] [role="combobox"] input,
+[data-testid="stSelectbox"] svg,
+[data-testid="stMultiSelect"] svg {
+    color: #334155 !important;
+    fill: currentColor !important;
+}
+.react-aria-ComboBox [role="group"],
+.react-aria-ComboBox input,
+.react-aria-ComboBox button {
+    border-color: var(--line-strong) !important;
+    background: #ffffff !important;
+    color: var(--ink) !important;
+}
+.react-aria-ComboBox button svg {
+    color: #334155 !important;
+    fill: currentColor !important;
+}
+[data-baseweb="input"],
+[data-baseweb="base-input"] {
+    background-color: #ffffff !important;
+    color: var(--ink) !important;
+}
+.stApp,
+.stApp [data-baseweb="select"],
+.stApp [data-baseweb="input"],
+.stApp [data-testid="stDateInput"] {
+    color-scheme: light;
+}
+.stApp [data-baseweb="select"],
+.stApp [data-baseweb="select"] > div,
+.stApp [data-baseweb="input"] > div,
+.stApp [data-baseweb="textarea"] > div {
+    background-color: #ffffff !important;
+    color: var(--ink) !important;
+}
+[data-baseweb="popover"],
+[data-baseweb="menu"],
+[data-baseweb="calendar"] {
+    background-color: #ffffff !important;
+    color: var(--ink) !important;
+}
+[data-testid="stExpander"] details,
+[data-testid="stExpander"] summary {
+    background: #ffffff !important;
+    color: var(--ink) !important;
+}
+[data-testid="stExpander"] summary p,
+[data-testid="stExpander"] summary svg {
+    color: #334155 !important;
+    fill: currentColor !important;
+}
+[data-testid="stLinkButton"] a {
+    border: 1px solid var(--line-strong) !important;
+    background: #ffffff !important;
+    color: #26364a !important;
+}
+[data-testid="stLinkButton"] a:hover {
+    border-color: var(--brand) !important;
+    background: #eef8fb !important;
+    color: #075985 !important;
+}
+.stMarkdownColoredText[style*="255, 108, 108"] { color: #c62828 !important; }
+.stMarkdownColoredText[style*="250, 250, 250"] { color: #475569 !important; }
+.stMarkdownColoredText[style*="255, 189, 69"] { color: #a95200 !important; }
+.stMarkdownColoredText[style*="92, 228, 136"] { color: #137a3a !important; }
+.stMarkdownColoredText[style*="61, 157, 243"] { color: #075ea5 !important; }
+[data-testid="stDataFrame"] {
+    border: 1px solid #cbd5e1 !important;
+    background: #ffffff !important;
+}
+[data-testid="stDataFrame"] iframe,
+[data-testid="stDataFrame"] canvas { color-scheme: light; }
+[data-testid="stTable"] {
+    overflow: auto;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.85rem;
+    background: #ffffff;
+}
+[data-testid="stTable"] table {
+    min-width: max-content;
+    background: #ffffff !important;
+}
+[data-testid="stTable"] th {
+    background: #eef2f6 !important;
+    color: #172033 !important;
+    white-space: nowrap;
+}
+[data-testid="stTable"] td {
+    background: #ffffff !important;
+    color: #27364a !important;
+    white-space: nowrap;
+}
+[data-testid="stProgress"] p,
+[data-testid="stProgress"] [data-testid="stMarkdownContainer"] p {
+    color: #1e293b !important;
+    font-weight: 650;
+}
+[data-testid="stProgressBarTrack"] { background: #dbe3ec !important; }
+[data-testid="stProgressBarTrack"] > div { background: var(--brand) !important; }
+[data-testid="stAlert"] {
+    background: #f8fafc !important;
+    color: #27364a !important;
+}
+[data-testid="stAlert"] p { color: #27364a !important; }
+.indicator-note {
+    background: rgba(8, 145, 178, 0.06);
+    color: #526277;
+}
+.app-footer { color: #64748b; }
+.nav-context { border-top-color: var(--line); }
+.nav-context::after { background: linear-gradient(90deg, var(--line), transparent); }
+hr { border-color: var(--line) !important; }
+
+.market-shell,
+.index-card,
+.breadth-panel {
+    border-color: var(--line) !important;
+    background: #ffffff !important;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.07);
+}
+.market-kicker,
+.market-title h1,
+.market-section-heading h3,
+.index-name,
+.index-price,
+.breadth-stat strong,
+.trade-date strong { color: var(--ink); }
+.market-title p,
+.market-section-heading p,
+.index-code,
+.index-detail-label,
+.breadth-stat small,
+.breadth-stat span,
+.breadth-source,
+.trade-date small { color: var(--muted); }
+.index-detail,
+.index-quote-row { border-color: var(--line); }
+.breadth-bar { background: #e2e8f0; }
+
+.st-key-theme_toggle button {
+    border-color: #cbd5e1;
+    background: #ffffff;
+    color: #334155;
+    box-shadow: 0 5px 18px rgba(15, 23, 42, 0.12);
+}
+.st-key-theme_toggle button:hover {
+    border-color: #64748b;
+    background: #f8fafc;
+    color: #0f172a;
+}
+.st-key-theme_toggle button p::before {
+    content: "☀";
+    color: #d97706;
+    font-size: 1.18rem;
+}

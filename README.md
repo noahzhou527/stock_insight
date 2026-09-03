@@ -31,7 +31,7 @@ Stock Insight currently supports:
 ```text
 stock_insight/
 |-- app.py                 # Main Streamlit application
-|-- pages/                 # Streamlit multi-page routes, including market overview
+|-- market_overviews.py    # Market overview, ranking, and news views
 |-- services/              # Cached data-access and data-range services
 |-- app_config.py          # App settings, page setup, and shared constants
 |-- sidebar.py             # Sidebar controls
@@ -202,7 +202,7 @@ The real secrets file is ignored by Git.
 
 ### Possible Improvements
 
-- [ ] Portfolio tracking and watchlists
+- [x] Personal A-share watchlist: add the current stock from **个股分析**, then select favorites under **我的自选** with the same complete analysis page
 - [ ] News and announcement integration
 - [ ] Saved user preferences
 - [ ] More international markets

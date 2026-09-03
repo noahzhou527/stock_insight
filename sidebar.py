@@ -6,11 +6,12 @@ from datetime import datetime, timedelta
 import streamlit as st
 
 from app_config import KR_TICKER_OPTIONS, US_TICKER_OPTIONS
+from watchlist import render_a_share_watchlist_sidebar, render_add_current_stock_button
 
 
 @dataclass(frozen=True)
 class DashboardControls:
-    ticker: str
+    ticker: str | None
     start_date: object
     end_date: object
     ma_periods: list[int]
@@ -19,32 +20,45 @@ class DashboardControls:
     rsi_period: int
 
 
-def render_sidebar(market: str, a_share_universe: dict) -> DashboardControls:
+def render_sidebar(
+    market: str,
+    a_share_universe: dict,
+    *,
+    a_share_watchlist: bool = False,
+) -> DashboardControls:
     """Render all dashboard inputs and return their values as one object."""
     st.sidebar.header("行情参数")
     if market == "CN":
-        pending_ticker = st.session_state.pop("pending_a_share_ticker", None)
-        if pending_ticker:
-            for candidate_industry, stocks in a_share_universe.items():
-                if any(code == pending_ticker for _, code in stocks):
-                    st.session_state["a_share_industry"] = candidate_industry
-                    break
+        if a_share_watchlist:
+            ticker = render_a_share_watchlist_sidebar(a_share_universe)
+        else:
+            pending_ticker = st.session_state.pop("pending_a_share_ticker", None)
+            if pending_ticker:
+                for candidate_industry, stocks in a_share_universe.items():
+                    if any(code == pending_ticker for _, code in stocks):
+                        st.session_state["a_share_industry"] = candidate_industry
+                        break
 
-        industry = st.sidebar.selectbox(
-            "产业链赛道", list(a_share_universe.keys()), key="a_share_industry"
-        )
-        live_names = st.session_state.get("a_share_live_names", {})
-        options = {
-            f"{live_names.get(code, name)} ({code})": code
-            for name, code in a_share_universe[industry]
-        }
-        if pending_ticker in options.values():
-            st.session_state["a_share_ticker"] = next(
-                label for label, code in options.items() if code == pending_ticker
+            industry = st.sidebar.selectbox(
+                "产业链赛道", list(a_share_universe.keys()), key="a_share_industry"
             )
-        ticker = options[
-            st.sidebar.selectbox("选择股票", list(options), key="a_share_ticker")
-        ]
+            live_names = st.session_state.get("a_share_live_names", {})
+            stock_names = {
+                code: live_names.get(code, name)
+                for name, code in a_share_universe[industry]
+            }
+            options = {
+                f"{stock_names[code]} ({code})": code
+                for _, code in a_share_universe[industry]
+            }
+            if pending_ticker in options.values():
+                st.session_state["a_share_ticker"] = next(
+                    label for label, code in options.items() if code == pending_ticker
+                )
+            ticker = options[
+                st.sidebar.selectbox("选择股票", list(options), key="a_share_ticker")
+            ]
+            render_add_current_stock_button(ticker, stock_names[ticker])
     elif market == "US":
         selected = st.sidebar.selectbox("选择股票", list(US_TICKER_OPTIONS))
         ticker = st.sidebar.text_input("输入股票代码", "AAPL").upper() if US_TICKER_OPTIONS[selected] == "CUSTOM" else US_TICKER_OPTIONS[selected]
@@ -66,7 +80,6 @@ def render_sidebar(market: str, a_share_universe: dict) -> DashboardControls:
         "移动平均线周期",
         options=[5, 10, 20, 30, 50, 60, 120],
         default=[5, 10, 20],
-        accept_new_options=True,
     )
     ma_periods = []
     for value in raw_periods:

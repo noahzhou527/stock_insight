@@ -3,7 +3,7 @@ import pandas as pd
 import numpy as np
 import importlib
 import visualization
-import pages.market_overviews as market_overviews
+import market_overviews
 
 # 导入自定义模块
 from data_fetcher import DataFetchError
@@ -27,7 +27,7 @@ from new_listing import (
 from visualization import plot_candlestick, plot_intraday, plot_rsi, plot_macd
 from app_config import VALUATION_CACHE_VERSION, configure_page, get_ths_access_token
 from sidebar import render_sidebar
-from styles import load_styles
+from styles import load_styles, render_dataframe, render_theme_toggle
 from services.market_data import (
     indicator_warmup_start,
     is_market_trading_session,
@@ -54,6 +54,7 @@ configure_page()
 
 # ============ 自定义样式 ============
 load_styles("dashboard.css")
+render_theme_toggle()
 
 
 # ============ 标题区域 ============
@@ -104,7 +105,7 @@ with st.container(key="top_navigation"):
             )
         with a_share_nav:
             view_label = {"A股": "A股视图", "美股": "美股视图", "韩股": "韩股视图"}[market_label]
-            view_options = ["个股分析", "股票池排行"] if market_label == "A股" else ["个股分析"]
+            view_options = ["个股分析", "我的自选", "股票池排行"] if market_label == "A股" else ["个股分析"]
             if (
                 "market_view_navigation" not in st.session_state
                 or st.session_state["market_view_navigation"] not in view_options
@@ -122,7 +123,7 @@ with st.container(key="top_navigation"):
 # 非行情页面在构建侧栏及请求市场数据前完成路由。
 if page == "市场总览":
     st.markdown("---")
-    market_overviews.render_market_overview_page(configure=False)
+    market_overviews.render_market_overview_page()
     st.stop()
 if page == "指标说明":
     st.markdown("---")
@@ -140,7 +141,11 @@ if market_label == "A股" and a_share_view == "股票池排行":
 # ============ 侧边栏控制面板 ============
 market = {"A股": "CN", "美股": "US", "韩股": "KR"}[market_label]
 ths_access_token = get_ths_access_token()
-controls = render_sidebar(market, A_SHARE_UNIVERSE)
+controls = render_sidebar(
+    market,
+    A_SHARE_UNIVERSE,
+    a_share_watchlist=market_label == "A股" and a_share_view == "我的自选",
+)
 ticker = controls.ticker
 start_date = controls.start_date
 end_date = controls.end_date
@@ -148,6 +153,11 @@ ma_periods = controls.ma_periods
 show_bbi = controls.show_bbi
 show_boll = controls.show_boll
 rsi_period = controls.rsi_period
+
+if ticker is None:
+    st.markdown("---")
+    st.info("暂无自选股。")
+    st.stop()
 
 
 def refresh_intraday_data(selected_ticker: str) -> None:
@@ -682,7 +692,7 @@ with tab3:
         }
     )
 
-    st.dataframe(
+    render_dataframe(
         display_df,
         width="stretch",
         column_config=data_detail_column_config("日期"),
@@ -700,7 +710,7 @@ with tab3:
     # 数据统计
     st.subheader("数据统计摘要")
     st.caption(f"共 {len(df)} 个交易日")
-    st.dataframe(
+    render_dataframe(
         format_statistics(df, display_market),
         width="stretch",
         column_config=data_detail_column_config("统计项"),

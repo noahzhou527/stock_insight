@@ -10,7 +10,6 @@ import streamlit as st
 import visualization
 import services.market_overview_data as market_overview_data
 
-from app_config import configure_page
 from styles import load_styles
 from financial_rankings import fetch_latest_quarter_net_profit_ranking
 from market_snapshot import fetch_a_share_market_snapshot, flatten_a_share_universe, rank_snapshot
@@ -232,10 +231,8 @@ def render_market_overview(market: str) -> None:
     )
 
 
-def render_market_overview_page(*, configure: bool = True) -> None:
-    """Standalone Streamlit page served at /market_overviews."""
-    if configure:
-        configure_page()
+def render_market_overview_page() -> None:
+    """Render the market overview inside the main application."""
     load_styles("market_overview.css")
     st.markdown(
         '<div class="overview-brand"><strong>Stock Insight</strong><span>Market Overview</span></div>',
@@ -249,12 +246,6 @@ def render_market_overview_page(*, configure: bool = True) -> None:
         width="stretch",
     )
     render_market_overview({"A股": "CN", "美股": "US", "韩股 KOSPI": "KR"}[market_label])
-
-
-if __name__ == "__main__":
-    render_market_overview_page()
-
-
 def _toggle_ranking_sort(metric: str, source_column: str) -> None:
     sort_key = f"a-share-ranking-sort:{metric}"
     current = st.session_state.get(sort_key)
