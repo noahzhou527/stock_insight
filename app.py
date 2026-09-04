@@ -92,7 +92,7 @@ with st.container(key="top_navigation"):
     )
     if page == "行情分析":
         st.markdown('<div class="nav-context"></div>', unsafe_allow_html=True)
-        market_nav, a_share_nav = st.columns(2, gap="medium")
+        market_nav, a_share_nav = st.columns([4, 5], gap="medium")
         with market_nav:
             st.markdown('<div class="nav-label">股票市场</div>', unsafe_allow_html=True)
             market_label = st.segmented_control(

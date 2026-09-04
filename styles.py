@@ -66,10 +66,10 @@ def themed_dataframe(frame):
 def render_dataframe(frame, **kwargs):
     if not is_light_theme():
         return st.dataframe(frame, **kwargs)
-    height = min(620, 42 * (len(frame) + 1))
-    return st.table(
-        themed_dataframe(frame),
-        width=kwargs.get("width", "stretch"),
-        height=height,
-        hide_index=kwargs.get("hide_index"),
-    )
+    table_kwargs = {
+        "width": kwargs.get("width", "stretch"),
+        "hide_index": kwargs.get("hide_index"),
+    }
+    if len(frame) > 12:
+        table_kwargs["height"] = 680
+    return st.table(themed_dataframe(frame), **table_kwargs)

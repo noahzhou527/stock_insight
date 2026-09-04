@@ -33,11 +33,34 @@
 }
 [data-testid="stSidebarCollapseButton"] button,
 [data-testid="stSidebarCollapsedControl"] button,
+[data-testid="stExpandSidebarButton"],
 [data-testid="stSidebarCollapseButton"] svg,
 [data-testid="stSidebarCollapsedControl"] svg {
     color: #334155 !important;
     fill: currentColor !important;
     opacity: 1 !important;
+}
+[data-testid="stSidebarCollapseButton"] button,
+[data-testid="stSidebarCollapsedControl"] button,
+[data-testid="stExpandSidebarButton"] {
+    background: transparent !important;
+    border: 1px solid transparent !important;
+    border-radius: 10px !important;
+    box-shadow: none !important;
+}
+[data-testid="stSidebarCollapseButton"] button:hover,
+[data-testid="stSidebarCollapsedControl"] button:hover,
+[data-testid="stExpandSidebarButton"]:hover,
+[data-testid="stSidebarCollapseButton"] button:focus-visible,
+[data-testid="stSidebarCollapsedControl"] button:focus-visible,
+[data-testid="stExpandSidebarButton"]:focus-visible {
+    background: #e2e8f0 !important;
+    border-color: #cbd5e1 !important;
+}
+[data-testid="stSidebarCollapseButton"] [data-testid="stIconMaterial"],
+[data-testid="stSidebarCollapsedControl"] [data-testid="stIconMaterial"],
+[data-testid="stExpandSidebarButton"] [data-testid="stIconMaterial"] {
+    color: #334155 !important;
 }
 button[aria-label="Collapse sidebar"],
 button[aria-label="Expand sidebar"],
@@ -66,6 +89,20 @@ button[aria-label="Expand sidebar"] svg {
 .stApp [data-testid="stCaptionContainer"],
 .stApp [data-testid="stMarkdownContainer"] em {
     color: #475569 !important;
+}
+.stApp [data-testid="stCheckbox"] label > div:first-of-type {
+    background: #cbd5e1 !important;
+    border: 1px solid #94a3b8 !important;
+    box-shadow: inset 0 0 0 1px rgba(71, 85, 105, 0.08) !important;
+}
+.stApp [data-testid="stCheckbox"] label > div:first-of-type > div {
+    background: #ffffff !important;
+    border: 1px solid #94a3b8 !important;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.22) !important;
+}
+.stApp [data-testid="stCheckbox"] label:has(input:checked) > div:first-of-type {
+    background: var(--brand-strong) !important;
+    border-color: var(--brand-strong) !important;
 }
 
 .app-hero {
@@ -115,9 +152,11 @@ button[data-variant="segmented_control"] {
     background: #f8fafc !important;
     color: #526277 !important;
 }
-.st-key-top_navigation button:hover,
+.st-key-top_navigation .st-key-page_navigation button:hover,
+.st-key-top_navigation .st-key-market_navigation button:hover,
+.st-key-top_navigation .st-key-market_view_navigation button:hover,
 div[data-testid="stSegmentedControl"] button:hover {
-    color: #0f172a !important;
+    color: #075985 !important;
     background: #e8eef5 !important;
 }
 .st-key-top_navigation button[aria-pressed="true"],
@@ -210,6 +249,7 @@ button[data-variant="segmented_control"][data-selected="true"] {
 }
 [data-testid="stSidebar"] [data-testid="stTextInput"] [data-baseweb="input"],
 [data-testid="stSidebar"] [data-testid="stTextInput"] [data-baseweb="base-input"],
+[data-testid="stSidebar"] [data-testid="stTextInputRootElement"],
 [data-testid="stSidebar"] [data-testid="stTextInput"] input {
     border-color: var(--line-strong) !important;
     background: #ffffff !important;
@@ -222,7 +262,8 @@ button[data-variant="segmented_control"][data-selected="true"] {
     opacity: 1;
 }
 [data-testid="stSidebar"] [data-testid="stTextInput"] [data-baseweb="input"]:focus-within,
-[data-testid="stSidebar"] [data-testid="stTextInput"] [data-baseweb="base-input"]:focus-within {
+[data-testid="stSidebar"] [data-testid="stTextInput"] [data-baseweb="base-input"]:focus-within,
+[data-testid="stSidebar"] [data-testid="stTextInputRootElement"]:focus-within {
     border-color: var(--brand) !important;
     outline: none !important;
     box-shadow: 0 0 0 2px rgba(8, 145, 178, 0.14) !important;
@@ -303,6 +344,23 @@ button[data-variant="segmented_control"][data-selected="true"] {
     background-color: #ffffff !important;
     color: var(--ink) !important;
 }
+[data-testid="stSelectboxVirtualDropdown"] {
+    border: 1px solid var(--line-strong) !important;
+    background: #ffffff !important;
+    color: var(--ink) !important;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14) !important;
+}
+[data-testid="stSelectboxVirtualDropdown"] [role="listbox"],
+[data-testid="stSelectboxVirtualDropdown"] [role="option"],
+[data-testid="stSelectboxVirtualDropdown"] [data-item-hl] {
+    color: var(--ink) !important;
+}
+[data-testid="stSelectboxVirtualDropdown"] [role="option"][data-selected="true"] [data-item-hl],
+[data-testid="stSelectboxVirtualDropdown"] [role="option"][data-focused="true"] [data-item-hl],
+[data-testid="stSelectboxVirtualDropdown"] [role="option"]:hover [data-item-hl] {
+    background: #e8f3f8 !important;
+    color: #075985 !important;
+}
 [data-testid="stExpander"] details,
 [data-testid="stExpander"] summary {
     background: #ffffff !important;
@@ -341,17 +399,21 @@ button[data-variant="segmented_control"][data-selected="true"] {
     background: #ffffff;
 }
 [data-testid="stTable"] table {
-    min-width: max-content;
+    width: 100%;
+    min-width: 52rem;
     background: #ffffff !important;
 }
 [data-testid="stTable"] th {
     background: #eef2f6 !important;
     color: #172033 !important;
-    white-space: nowrap;
+    padding: 0.52rem 0.5rem;
+    line-height: 1.3;
+    white-space: normal;
 }
 [data-testid="stTable"] td {
     background: #ffffff !important;
     color: #27364a !important;
+    padding: 0.46rem 0.5rem;
     white-space: nowrap;
 }
 [data-testid="stProgress"] p,
@@ -397,23 +459,45 @@ hr { border-color: var(--line) !important; }
 .breadth-stat span,
 .breadth-source,
 .trade-date small { color: var(--muted); }
-.index-detail,
+.index-details div {
+    border-color: var(--line);
+    background: var(--surface-raised);
+}
+.index-details b,
+.index-breadth-summary b { color: var(--ink); }
+.index-breadth-summary,
 .index-quote-row { border-color: var(--line); }
 .breadth-bar { background: #e2e8f0; }
 
 .st-key-theme_toggle button {
     border-color: #cbd5e1;
-    background: #ffffff;
+    background: linear-gradient(145deg, #ffffff 52%, #fff7e6 135%);
     color: #334155;
-    box-shadow: 0 5px 18px rgba(15, 23, 42, 0.12);
+    box-shadow:
+        0 7px 20px rgba(15, 23, 42, 0.14),
+        0 0 0 1px rgba(255, 255, 255, 0.88),
+        inset 0 0 0 1px rgba(217, 119, 6, 0.08);
+}
+.st-key-theme_toggle button::after {
+    content: "";
+    position: absolute;
+    inset: 2px;
+    border: 1px solid rgba(255, 255, 255, 0.92);
+    border-radius: 50%;
+    pointer-events: none;
 }
 .st-key-theme_toggle button:hover {
-    border-color: #64748b;
-    background: #f8fafc;
+    border-color: #d6a85f;
+    background: linear-gradient(145deg, #ffffff 38%, #ffedc5 125%);
     color: #0f172a;
+    box-shadow:
+        0 9px 24px rgba(15, 23, 42, 0.16),
+        0 0 0 3px rgba(245, 158, 11, 0.1),
+        inset 0 0 0 1px rgba(217, 119, 6, 0.12);
 }
 .st-key-theme_toggle button p::before {
     content: "☀";
+    top: calc(50% + 1px);
     color: #d97706;
     font-size: 1.18rem;
 }
