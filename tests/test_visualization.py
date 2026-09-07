@@ -6,6 +6,19 @@ from visualization import plot_candlestick, plot_intraday
 
 
 class CandlestickChartTests(unittest.TestCase):
+    def test_short_history_occupies_left_half_without_padding_prices(self):
+        frame = pd.DataFrame(
+            {"Open": [10.] * 50, "High": [12.] * 50, "Low": [9.] * 50,
+             "Close": [11.] * 50, "Volume": [100.] * 50},
+            index=pd.bdate_range("2026-07-01", periods=50),
+        )
+        figure = plot_candlestick(frame, display_sessions=100)
+        self.assertEqual(len(figure.data[0].x), 50)
+        self.assertEqual(figure.layout.xaxis.range, (-0.5, 99.5))
+        self.assertEqual(figure.layout.xaxis2.range, (-0.5, 99.5))
+        self.assertEqual(len(figure.layout.xaxis.categoryarray), 50)
+        self.assertEqual(figure.layout.xaxis.categoryarray[0], "2026-07-01")
+
     def test_marks_selected_range_high_and_low(self):
         frame = pd.DataFrame(
             {

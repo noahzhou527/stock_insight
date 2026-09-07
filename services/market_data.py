@@ -7,6 +7,8 @@ import pandas as pd
 import streamlit as st
 
 from data_fetcher import (
+    _fetch_a_share_year,
+    _fetch_from_yahoo,
     DataFetchError,
     fetch_a_share_financial_reports,
     fetch_a_share_intraday,
@@ -170,6 +172,22 @@ def trim_to_display_range(frame, display_start, display_end):
     trimmed = frame.loc[(frame.index >= start) & (frame.index <= end)].copy()
     trimmed.attrs.update(attrs)
     return trimmed
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def load_chart_sessions(start, end, market):
+    """Use benchmark trading dates to size the chart, without padding stock data."""
+    start, end = pd.Timestamp(start), pd.Timestamp(end)
+    if market == "CN":
+        frames = [_fetch_a_share_year("1A0001", year) for year in range(start.year, end.year + 1)]
+        calendar = pd.concat(frames)
+    else:
+        calendar = _fetch_from_yahoo("^KS11" if market == "KR" else "^GSPC", start, end + pd.Timedelta(days=1))
+    dates = pd.DatetimeIndex(calendar.index).normalize().unique()
+    dates = dates[(dates >= start) & (dates <= end)]
+    if dates.empty:
+        raise DataFetchError("calendar_unavailable", "交易日历暂不可用。")
+    return dates
 
 
 @st.cache_data(ttl=300, show_spinner=False)

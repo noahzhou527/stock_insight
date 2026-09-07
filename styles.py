@@ -20,13 +20,16 @@ def load_styles(*names: str) -> None:
 
 def render_theme_toggle() -> None:
     light = is_light_theme()
-    if st.button(
+    st.button(
         "切换主题",
         key="theme_toggle",
         help=f"切换到{'暗色' if light else '亮色'}模式",
-    ):
-        st.query_params["theme"] = "dark" if light else "light"
-        st.rerun()
+        on_click=_toggle_theme,
+    )
+
+
+def _toggle_theme() -> None:
+    st.query_params["theme"] = "dark" if is_light_theme() else "light"
 
 
 def themed_dataframe(frame):

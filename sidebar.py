@@ -60,8 +60,8 @@ def render_sidebar(
             ]
             render_add_current_stock_button(ticker, stock_names[ticker])
     elif market == "US":
-        selected = st.sidebar.selectbox("选择股票", list(US_TICKER_OPTIONS))
-        ticker = st.sidebar.text_input("输入股票代码", "AAPL").upper() if US_TICKER_OPTIONS[selected] == "CUSTOM" else US_TICKER_OPTIONS[selected]
+        selected = st.sidebar.selectbox("选择股票", list(US_TICKER_OPTIONS), key="us_ticker")
+        ticker = st.sidebar.text_input("输入股票代码", "AAPL", key="us_custom_ticker").upper() if US_TICKER_OPTIONS[selected] == "CUSTOM" else US_TICKER_OPTIONS[selected]
     else:
         st.sidebar.caption("当前仅提供市值前五个股")
         ticker = KR_TICKER_OPTIONS[
@@ -70,9 +70,9 @@ def render_sidebar(
 
     first, second = st.sidebar.columns(2)
     with first:
-        start_date = st.date_input("开始日期", datetime.now() - timedelta(days=365))
+        start_date = st.date_input("开始日期", datetime.now() - timedelta(days=365), key="display_start")
     with second:
-        end_date = st.date_input("结束日期", datetime.now())
+        end_date = st.date_input("结束日期", datetime.now(), key="display_end")
 
     st.sidebar.markdown("---")
     st.sidebar.subheader("技术指标设置")
@@ -80,6 +80,7 @@ def render_sidebar(
         "移动平均线周期",
         options=[5, 10, 20, 30, 50, 60, 120],
         default=[5, 10, 20],
+        key="ma_periods",
     )
     ma_periods = []
     for value in raw_periods:
@@ -92,8 +93,8 @@ def render_sidebar(
 
     first, second = st.sidebar.columns(2)
     with first:
-        show_bbi = st.toggle("BBI 线", value=False)
+        show_bbi = st.toggle("BBI 线", value=False, key="show_bbi")
     with second:
-        show_boll = st.toggle("BOLL 线", value=False)
-    rsi_period = st.sidebar.slider("RSI周期", 7, 21, 14)
+        show_boll = st.toggle("BOLL 线", value=False, key="show_boll")
+    rsi_period = st.sidebar.slider("RSI周期", 7, 21, 14, key="rsi_period")
     return DashboardControls(ticker, start_date, end_date, ma_periods, show_bbi, show_boll, rsi_period)

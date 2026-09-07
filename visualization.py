@@ -175,8 +175,12 @@ def plot_candlestick(
     show_bbi: bool = False,
     show_boll: bool = False,
     volume_metric: str = "volume",
+    display_sessions: int | None = None,
 ) -> go.Figure:
     """绘制共享横轴的 K 线、均线、BBI、BOLL 和成交量/成交额组合图。"""
+    if display_sessions is not None:
+        df = df.copy()
+        df.index = pd.DatetimeIndex(df.index).strftime("%Y-%m-%d")
     is_a_share = market.upper() == "CN"
     up_color = "#e53935" if is_a_share else "#16a085"
     down_color = "#1e9d55" if is_a_share else "#e74c3c"
@@ -383,6 +387,15 @@ def plot_candlestick(
         spikedash="dot",
         spikecolor="#64748b",
     )
+    if display_sessions is not None:
+        # Category coordinates reserve empty slots on the right without fake dates
+        # or OHLCV rows; every real candle retains one session of width.
+        fig.update_xaxes(
+            type="category", categoryorder="array", categoryarray=df.index.tolist(),
+            range=[-0.5, max(display_sessions, len(df)) - 0.5], rangebreaks=[],
+            tickmode="array", tickvals=df.index[::max(1, (display_sessions + 7) // 8)].tolist(),
+            tickangle=0,
+        )
     fig.update_yaxes(
         title_text=f"价格 ({currency})",
         row=1,

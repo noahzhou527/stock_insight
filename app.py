@@ -32,6 +32,7 @@ from services.market_data import (
     indicator_warmup_start,
     is_market_trading_session,
     load_data,
+    load_chart_sessions,
     load_intraday,
     load_krw_usd_rate,
     load_us_market_cap,
@@ -40,6 +41,7 @@ from services.market_data import (
 )
 from investment_insights_view import render_investment_insights
 from financial_reports_view import render_financial_reports
+from browser_state import sync_browser_state, save_browser_state
 
 # Streamlit reruns the app in the same process, so refresh the separately
 # maintained stock universe before building sidebar options.
@@ -51,6 +53,18 @@ A_SHARE_UNIVERSE = a_share_universe.A_SHARE_UNIVERSE
 
 # ============ 页面配置 ============
 configure_page()
+sync_browser_state()
+
+# Keep conditional widgets alive across routes and early stops. Streamlit otherwise
+# deletes their state when the sidebar/navigation is absent for one run.
+for control_key in (
+    "market_navigation", "market_view_navigation", "a_share_industry",
+    "a_share_ticker", "a_share_watchlist_ticker", "kr_ticker", "us_ticker",
+    "us_custom_ticker", "display_start", "display_end", "ma_periods",
+    "show_bbi", "show_boll", "rsi_period",
+):
+    if control_key in st.session_state:
+        st.session_state[control_key] = st.session_state[control_key]
 
 # ============ 自定义样式 ============
 load_styles("dashboard.css")
@@ -122,18 +136,22 @@ with st.container(key="top_navigation"):
 
 # 非行情页面在构建侧栏及请求市场数据前完成路由。
 if page == "市场总览":
+    save_browser_state()
     st.markdown("---")
     market_overviews.render_market_overview_page()
     st.stop()
 if page == "指标说明":
+    save_browser_state()
     st.markdown("---")
     render_indicator_help()
     st.stop()
 if page == "新闻热点":
+    save_browser_state()
     st.markdown("---")
     market_overviews.render_news_page()
     st.stop()
 if market_label == "A股" and a_share_view == "股票池排行":
+    save_browser_state()
     st.markdown("---")
     market_overviews.render_a_share_rankings(A_SHARE_UNIVERSE)
     st.stop()
@@ -153,6 +171,7 @@ ma_periods = controls.ma_periods
 show_bbi = controls.show_bbi
 show_boll = controls.show_boll
 rsi_period = controls.rsi_period
+save_browser_state()
 
 if ticker is None:
     st.markdown("---")
@@ -607,6 +626,13 @@ with tab1:
 
     # 绘制K线图
     chart_df = df_with_ma
+    display_sessions = None
+    if pd.Timestamp(indicator_history_df.index.min()) > pd.Timestamp(start_date):
+        try:
+            calendar = load_chart_sessions(start_date, end_date, market)
+            display_sessions = len(calendar.union(pd.DatetimeIndex(chart_df.index).normalize()))
+        except Exception:
+            st.caption("交易日历暂不可用，当前按已有日 K 自适应显示。")
     fig = plot_candlestick(
         chart_df,
         ma_periods,
@@ -615,6 +641,7 @@ with tab1:
         show_bbi=show_bbi,
         show_boll=show_boll,
         volume_metric=volume_metric,
+        display_sessions=display_sessions,
     )
     st.plotly_chart(fig, width="stretch")
 

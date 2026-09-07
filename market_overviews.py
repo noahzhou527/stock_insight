@@ -306,7 +306,8 @@ def _render_ranking_table(snapshot, metric):
         [class*="st-key-a-share-ranking-table-"] { overflow-x: auto; }
         [class*="st-key-a-share-ranking-table-"] [data-testid="stHorizontalBlock"] { min-width: 780px; flex-wrap: nowrap; }
         [class*="st-key-a-share-ranking-table-"] [data-testid="stMarkdownContainer"] p { margin: 0; white-space: nowrap; }
-        [class*="st-key-a-share-ranking-table-"] .stButton > button { min-height: 0; padding: .15rem 0; white-space: nowrap; }
+        [class*="st-key-a-share-ranking-table-"] .stButton > button { min-height: 0; padding: .15rem 0; white-space: nowrap; background: transparent !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; }
+        [class*="st-key-a-share-ranking-sort-button"] button p { font-weight: 700 !important; }
         .ranking-price-up { color: #e53935; }
         .ranking-price-down { color: #1e9d55; }
         </style>

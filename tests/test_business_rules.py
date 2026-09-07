@@ -1,10 +1,25 @@
 import unittest
 
 import pandas as pd
+from datetime import date
+from browser_state import valid_preferences
 
 from financial_rankings import _annual_comparison_row
 from formatters import format_statistics
 from new_listing import get_new_listing_state
+
+
+class BrowserPreferencesTests(unittest.TestCase):
+    def test_restores_dates_and_ignores_invalid_or_unrelated_values(self):
+        result = valid_preferences({
+            "display_start": "2026-08-01", "display_end": "invalid",
+            "page_navigation": "股票池排行", "rsi_period": 999,
+            "ma_periods": [5, 10, 5], "show_bbi": True,
+            "access_token": "must not be restored",
+        })
+        self.assertEqual(result, {
+            "display_start": date(2026, 8, 1), "ma_periods": [5, 10], "show_bbi": True,
+        })
 
 
 class NewListingTests(unittest.TestCase):

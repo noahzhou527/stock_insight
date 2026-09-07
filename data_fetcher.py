@@ -275,7 +275,8 @@ def _generate_demo_data(ticker: str, start_date, end_date) -> pd.DataFrame:
 
 def _fetch_from_yahoo(ticker: str, start_date, end_date) -> pd.DataFrame:
     session = _create_yahoo_session()
-    df = yf.Ticker(ticker, session=session).history(start=start_date, end=end_date)
+    yahoo_ticker = f"{ticker[:-3]}.SS" if ticker.upper().endswith(".SH") else ticker
+    df = yf.Ticker(yahoo_ticker, session=session).history(start=start_date, end=end_date)
     df = _standardize_price_frame(df)
     if not df.empty:
         df.attrs["source"] = "Yahoo Finance"
@@ -465,20 +466,12 @@ def fetch_a_share_data(
         if not cached.empty:
             cached.attrs["source"] = "同花顺本地缓存"
             return cached
-        if not errors:
-            raise DataFetchError(
-                "ths_empty_data",
-                "同花顺未返回该股票在所选日期范围内的行情。",
-            )
-        raise DataFetchError(
-            "ths_request_failed",
-            "无法从同花顺获取该 A 股的历史行情，请稍后重试。",
-            errors[0] if errors else None,
-        ) from (errors[0] if errors else None)
+        df = pd.DataFrame()
+    else:
+        df = pd.concat(frames)
+        df = df[~df.index.duplicated(keep="last")].sort_index()
+        df = _filter_date_range(df, start, end)
 
-    df = pd.concat(frames)
-    df = df[~df.index.duplicated(keep="last")].sort_index()
-    df = _filter_date_range(df, start, end)
     if not _covers_requested_range(df, start, end) and not any(_is_not_listed_error(error) for error in errors):
         try:
             yahoo_df = _fetch_from_yahoo(ticker, start, end + pd.Timedelta(days=1))
@@ -488,7 +481,17 @@ def fetch_a_share_data(
                 "同花顺返回的日线未覆盖所选日期范围，且备用数据源不可用。",
                 error,
             ) from error
-        if _covers_requested_range(yahoo_df, start, end):
+        yahoo_reaches_end = (
+            not yahoo_df.empty
+            and pd.Timestamp(yahoo_df.index.max()).normalize()
+            >= end.normalize() - pd.offsets.BDay(5)
+        )
+        same_available_start = (
+            df.empty
+            or pd.Timestamp(yahoo_df.index.min()).normalize()
+            <= pd.Timestamp(df.index.min()).normalize()
+        )
+        if _covers_requested_range(yahoo_df, start, end) or (yahoo_reaches_end and same_available_start):
             df = _filter_date_range(yahoo_df, start, end)
             used_yahoo_fallback = True
         else:

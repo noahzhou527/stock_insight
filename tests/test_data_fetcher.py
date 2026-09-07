@@ -43,6 +43,41 @@ class _FakeTicker:
 
 
 class AShareDataTests(unittest.TestCase):
+    def test_new_listing_uses_all_yahoo_daily_bars_when_ths_is_unavailable(self):
+        yahoo_history = pd.DataFrame(
+            {
+                "Open": range(30), "High": range(1, 31), "Low": range(30),
+                "Close": range(1, 31), "Volume": [1_000] * 30, "Amount": [1_000] * 30,
+            },
+            index=pd.bdate_range("2026-07-27", periods=30),
+        )
+        with patch("data_fetcher._fetch_a_share_year", side_effect=ConnectionError("temporary failure")), patch(
+            "data_fetcher._load_local_cache", return_value=pd.DataFrame()
+        ), patch(
+            "data_fetcher._fetch_from_yahoo", return_value=yahoo_history
+        ) as fetch_yahoo, patch("data_fetcher._save_local_cache"):
+            result = fetch_a_share_data("688825.SH", "2025-09-04", "2026-09-04")
+
+        self.assertEqual(len(result), 30)
+        self.assertEqual(result.attrs["source"], "Yahoo Finance")
+        fetch_yahoo.assert_called_once_with(
+            "688825.SH", pd.Timestamp("2025-09-04"), pd.Timestamp("2026-09-05")
+        )
+
+    @patch("data_fetcher.yf.Ticker")
+    def test_yahoo_uses_ss_suffix_for_shanghai_stocks(self, ticker_class):
+        ticker_class.return_value.history.return_value = pd.DataFrame(
+            {
+                "Open": [1], "High": [1], "Low": [1], "Close": [1], "Volume": [1],
+            },
+            index=pd.to_datetime(["2026-09-04"]),
+        )
+
+        from data_fetcher import _fetch_from_yahoo
+        _fetch_from_yahoo("688825.SH", "2026-09-04", "2026-09-05")
+
+        self.assertEqual(ticker_class.call_args.args[0], "688825.SS")
+
     def test_new_listing_skips_pre_listing_year_and_keeps_available_history(self):
         daily_frame = pd.DataFrame(
             {
