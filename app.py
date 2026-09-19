@@ -203,15 +203,6 @@ def convert_krw_frame_to_usd(frame: pd.DataFrame, rate: float) -> pd.DataFrame:
 @st.fragment(run_every="30s")
 def render_intraday_panel(selected_ticker, selected_market, display_market=None, currency_rate=1.0):
     session_key = f"intraday:{selected_market}:{selected_ticker}"
-    manually_refreshed = st.button(
-        "立即刷新",
-        key=f"refresh-intraday:{selected_market}:{selected_ticker}",
-        width="content",
-    )
-    if manually_refreshed:
-        refresh_intraday_data(selected_ticker)
-        st.rerun()
-
     should_fetch = is_market_trading_session(selected_market) or session_key not in st.session_state
     if should_fetch:
         try:
@@ -230,16 +221,24 @@ def render_intraday_panel(selected_ticker, selected_market, display_market=None,
     if selected_market == "KR" and display_market == "US":
         intraday = convert_krw_frame_to_usd(intraday, currency_rate)
 
-    trade_date = intraday.attrs.get("trade_date", "")
-    source = intraday.attrs.get("source", "同花顺")
-    refresh_note = "交易时段每 30 秒自动刷新" if is_market_trading_session(selected_market) else "非交易时段显示最近数据"
-    st.caption(f"交易日：{trade_date} · 数据来源：{source} · {refresh_note}")
-    volume_metric_label = st.segmented_control(
-        "副图指标",
-        ["成交量", "成交额"],
-        default="成交量",
-        key=f"intraday-volume-metric:{selected_market}:{selected_ticker}",
-    )
+    metric_col, meta_col = st.columns([4, 7], vertical_alignment="top")
+    with metric_col:
+        volume_metric_label = st.segmented_control(
+            "副图指标",
+            ["成交量", "成交额"],
+            default="成交量",
+            key=f"intraday-volume-metric:{selected_market}:{selected_ticker}",
+        )
+    with meta_col:
+        with st.container(key="intraday_refresh_btn"):
+            manually_refreshed = st.button(
+                "立即刷新",
+                key=f"refresh-intraday:{selected_market}:{selected_ticker}",
+                width="content",
+            )
+    if manually_refreshed:
+        refresh_intraday_data(selected_ticker)
+        st.rerun()
     st.plotly_chart(
         plot_intraday(
             intraday,
@@ -308,26 +307,34 @@ try:
     new_listing = get_new_listing_state(df, rsi_period)
     with st.container(key="data_load_success"):
         st.success(f"成功加载 {ticker} 从 {start_date} 到 {end_date} 的数据")
-    if indicator_history_df.attrs.get("includes_intraday_daily_bar"):
-        st.markdown(
-            '<div class="settlement-note-right">'
-            '当日成交额由分时明细合成，可能因行情更新时点、精度与正式结算值略有偏差；'
-            '盘后成交不重复累加，下一交易日以正式日线校准。'
-            '</div>',
-            unsafe_allow_html=True,
-        )
-    if data_source in {"同花顺", "同花顺 iFinD"}:
-        st.caption("数据来源：同花顺")
-    elif data_source == "同花顺本地缓存":
-        st.warning("同花顺当前不可用，正在显示本地缓存数据。")
-    elif data_source == "Yahoo Finance":
-        st.caption("Data source: Yahoo Finance")
-    elif data_source == "local cache":
-        st.warning("Yahoo Finance 当前不可用，正在显示本地缓存数据。")
-    elif data_source == "demo data":
-        st.warning("Yahoo Finance 和备用数据源当前不可用，正在显示演示数据；请勿用于真实投资判断。")
-    else:
-        st.info(f"Yahoo Finance 当前不可用，已自动切换到 {data_source}。")
+    has_settlement_note = indicator_history_df.attrs.get("includes_intraday_daily_bar")
+    source_col, note_col = (
+        st.columns([1, 4], vertical_alignment="center")
+        if has_settlement_note
+        else (st.container(), None)
+    )
+    with source_col:
+        if data_source in {"同花顺", "同花顺 iFinD"}:
+            st.caption("数据来源：同花顺")
+        elif data_source == "同花顺本地缓存":
+            st.warning("同花顺当前不可用，正在显示本地缓存数据。")
+        elif data_source == "Yahoo Finance":
+            st.caption("Data source: Yahoo Finance")
+        elif data_source == "local cache":
+            st.warning("Yahoo Finance 当前不可用，正在显示本地缓存数据。")
+        elif data_source == "demo data":
+            st.warning("Yahoo Finance 和备用数据源当前不可用，正在显示演示数据；请勿用于真实投资判断。")
+        else:
+            st.info(f"Yahoo Finance 当前不可用，已自动切换到 {data_source}。")
+    if has_settlement_note:
+        with note_col:
+            st.markdown(
+                '<div class="settlement-note-right">'
+                '当日成交额由分时明细合成，可能因行情更新时点、精度与正式结算值略有偏差；'
+                '盘后成交不重复累加，下一交易日以正式日线校准。'
+                '</div>',
+                unsafe_allow_html=True,
+            )
 
 except DataFetchError as e:
     loading_message.empty()
@@ -594,24 +601,24 @@ df_macd = trim_to_display_range(calculate_macd(indicator_history_df), start_date
 
 # ============ Tab 1: 价格分析 ============
 with tab1:
-    price_chart_heading, refresh_col = st.columns([5, 1])
-    with price_chart_heading:
-        st.subheader("K线图与成交量")
+    st.subheader("K线图与成交量")
+    metric_col, refresh_col = st.columns([5, 1], vertical_alignment="center")
+    with metric_col:
+        volume_metric_label = st.segmented_control(
+            "副图指标",
+            ["成交量", "成交额"],
+            default="成交量",
+            key="price_volume_metric",
+        )
     with refresh_col:
         refresh_price_page = st.button(
             "立即刷新",
             key=f"refresh-intraday-from-price:{ticker}",
-            width="stretch",
+            width="content",
         )
     if refresh_price_page:
         refresh_intraday_data(ticker)
         st.rerun()
-    volume_metric_label = st.segmented_control(
-        "副图指标",
-        ["成交量", "成交额"],
-        default="成交量",
-        key="price_volume_metric",
-    )
     volume_metric = "amount" if volume_metric_label == "成交额" else "volume"
 
     # 计算移动平均线

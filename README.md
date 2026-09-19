@@ -75,19 +75,24 @@ stock_insight/
 
 4. **Run the app**
 
+   On Windows, double-click `start.bat` (or run it in a terminal). It reuses the
+   project's `.venv`, creates it and installs dependencies on first run, then
+   starts the app on port 8501 and opens the browser automatically.
+
+   Alternatively, run it manually with the project's virtual environment
+   (do **not** use the global Python — it usually has no Streamlit installed):
+
    ```bash
-   streamlit run app.py
+   .venv\Scripts\python -m streamlit run app.py --server.port 8501
    ```
 
 5. **Access the app**
 
    Open your browser and go to `http://localhost:8501`.
 
-If the Windows `streamlit.exe` launcher points to an old virtual environment, use this equivalent command:
-
-```bash
-python -m streamlit run app.py
-```
+If port 8501 is already taken, Streamlit exits with
+`Port 8501 is already in use` — stop the old process first
+(`netstat -ano | findstr :8501` shows its PID, then `taskkill /PID <pid> /F`).
 
 ## Tests
 

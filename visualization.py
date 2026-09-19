@@ -440,6 +440,8 @@ def plot_intraday(
     low_index = price_change_pct.idxmin()
     high_pct = float(price_change_pct.loc[high_index])
     low_pct = float(price_change_pct.loc[low_index])
+    high_tone = up_color if high_pct >= 0 else down_color
+    low_tone = up_color if low_pct >= 0 else down_color
     previous_prices = df["Price"].shift(1).fillna(pre_close)
     volume_colors = [
         up_color if price >= previous else down_color
@@ -509,10 +511,10 @@ def plot_intraday(
             x=[high_index],
             y=[df.loc[high_index, "Price"]],
             mode="markers+text",
-            marker=dict(color=up_color, size=8),
+            marker=dict(color=high_tone, size=8),
             text=[f"最高 {high_pct:+.2f}%"],
             textposition="top center",
-            textfont=dict(color=up_color, size=12),
+            textfont=dict(color=high_tone, size=12),
             cliponaxis=False,
             showlegend=False,
             hovertemplate=(
@@ -529,10 +531,10 @@ def plot_intraday(
             x=[low_index],
             y=[df.loc[low_index, "Price"]],
             mode="markers+text",
-            marker=dict(color=down_color, size=8),
+            marker=dict(color=low_tone, size=8),
             text=[f"最低 {low_pct:+.2f}%"],
             textposition="bottom center",
-            textfont=dict(color=down_color, size=12),
+            textfont=dict(color=low_tone, size=12),
             cliponaxis=False,
             showlegend=False,
             hovertemplate=(
@@ -682,6 +684,11 @@ def plot_index_intraday(
     ]
     price_tick_labels = [f"{price:,.2f}" for price in price_ticks]
     high, low = float(prices.max()), float(prices.min())
+    is_a_share = market.upper() == "CN"
+    up_tone = "#e53935" if is_a_share else "#16a085"
+    down_tone = "#1e9d55" if is_a_share else "#e74c3c"
+    high_tone = up_tone if high >= previous_close else down_tone
+    low_tone = up_tone if low >= previous_close else down_tone
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
@@ -719,9 +726,9 @@ def plot_index_intraday(
                 hovertemplate="%{x|%H:%M}<br>均价：%{y:.2f}<extra></extra>",
             )
         )
-    fig.add_hline(y=high, line_dash="dash", line_color="#d0d0d0", line_width=1, annotation_text=f"最高 {high:.2f}", annotation_font_color="#e53935", annotation_position="top left")
+    fig.add_hline(y=high, line_dash="dash", line_color="#d0d0d0", line_width=1, annotation_text=f"最高 {high:.2f}", annotation_font_color=high_tone, annotation_position="top left")
     fig.add_hline(y=previous_close, line_dash="dash", line_color="#8a94a6", line_width=1.5, annotation_text=f"昨收 {previous_close:.2f} · 0%", annotation_position="top left")
-    fig.add_hline(y=low, line_dash="dash", line_color="#d0d0d0", line_width=1, annotation_text=f"最低 {low:.2f}", annotation_font_color="#1e9d55", annotation_position="bottom left")
+    fig.add_hline(y=low, line_dash="dash", line_color="#d0d0d0", line_width=1, annotation_text=f"最低 {low:.2f}", annotation_font_color=low_tone, annotation_position="bottom left")
     fig.update_layout(
         title=dict(text=f"{name} 分时", x=0.01),
         height=430,

@@ -912,3 +912,7 @@
             animation-delay: 3s;
         }
     }
+    .st-key-intraday_refresh_btn {
+        align-items: flex-end;
+        margin-top: 1.5rem;
+    }

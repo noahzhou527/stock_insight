@@ -219,7 +219,31 @@ button[data-variant="segmented_control"][data-selected="true"] {
 .pe-formula,
 .metric-section-heading strong,
 .rsi-formula { color: var(--ink); }
-[data-testid="stMetricDelta"] { background: #eef2f6; }
+[data-testid="stMetricDelta"] {
+    background: #eef2f6;
+}
+/* Streamlit derives delta colors from the dark base theme (#ff6c6c / #5ce488),
+   which reads washed-out on light surfaces. Remap them to the same deep
+   variants used for colored markdown above so both themes look alike.
+   Default (US/KR, delta_color="normal"): up is green, down is red. */
+[data-testid="stMetricDelta"]:has([data-testid="stMetricDeltaIcon-Up"]),
+[data-testid="stMetricDelta"]:has([data-testid="stMetricDeltaIcon-Up"]) p {
+    color: #137a3a !important;
+}
+[data-testid="stMetricDelta"]:has([data-testid="stMetricDeltaIcon-Down"]),
+[data-testid="stMetricDelta"]:has([data-testid="stMetricDeltaIcon-Down"]) p {
+    color: #c62828 !important;
+}
+/* A-shares render with delta_color="inverse"; the .cn-price-* marker spans
+   in the same column flip the mapping back to red-up / green-down. */
+[data-testid="stColumn"]:has(.cn-price-up) [data-testid="stMetricDelta"],
+[data-testid="stColumn"]:has(.cn-price-up) [data-testid="stMetricDelta"] p {
+    color: #c62828 !important;
+}
+[data-testid="stColumn"]:has(.cn-price-down) [data-testid="stMetricDelta"],
+[data-testid="stColumn"]:has(.cn-price-down) [data-testid="stMetricDelta"] p {
+    color: #137a3a !important;
+}
 
 .stTabs [role="tablist"] {
     background: linear-gradient(180deg, #f8fafc, #ffffff);
@@ -343,6 +367,25 @@ button[data-variant="segmented_control"][data-selected="true"] {
 [data-baseweb="calendar"] {
     background-color: #ffffff !important;
     color: var(--ink) !important;
+}
+[data-baseweb="popover"] > div:has(> [data-baseweb="calendar"]),
+[data-baseweb="calendar"] > div > div > div {
+    background-color: #ffffff !important;
+    color: var(--ink) !important;
+}
+[data-baseweb="calendar"] button,
+[data-baseweb="calendar"] [role="gridcell"] {
+    color: var(--ink) !important;
+}
+[data-baseweb="calendar"] [role="gridcell"]:not([aria-label^="Selected"])::after {
+    background-color: #ffffff !important;
+}
+[data-baseweb="calendar"] [role="gridcell"][aria-roledescription="button"]:not([aria-label^="Selected"]):hover::after {
+    background-color: #eef8fb !important;
+}
+[data-baseweb="calendar"] [role="gridcell"][aria-label^="Selected"],
+[data-baseweb="calendar"] [role="gridcell"][aria-label^="Selected"] > div {
+    color: #ffffff !important;
 }
 [data-testid="stSelectboxVirtualDropdown"] {
     border: 1px solid var(--line-strong) !important;

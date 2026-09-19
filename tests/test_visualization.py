@@ -61,6 +61,22 @@ class IntradayChartTests(unittest.TestCase):
         )
         self.frame.attrs["pre_close"] = 10.0
 
+    def test_high_low_markers_tone_follows_pre_close_side(self):
+        # All prices at/above pre-close: both extremes render in the up color.
+        figure = plot_intraday(self.frame, market="CN")
+        self.assertEqual(figure.data[3].marker.color, "#e53935")
+        self.assertEqual(figure.data[3].textfont.color, "#e53935")
+        self.assertEqual(figure.data[4].marker.color, "#e53935")
+        self.assertEqual(figure.data[4].textfont.color, "#e53935")
+
+        # All prices below pre-close: both extremes render in the down color.
+        below = self.frame.copy()
+        below["Price"] = below["Price"] - 1.0
+        below.attrs["pre_close"] = 10.0
+        figure = plot_intraday(below, market="CN")
+        self.assertEqual(figure.data[3].marker.color, "#1e9d55")
+        self.assertEqual(figure.data[4].marker.color, "#1e9d55")
+
     def test_a_share_partial_day_keeps_full_session_axis(self):
         figure = plot_intraday(self.frame, market="CN")
 
