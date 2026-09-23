@@ -13,7 +13,17 @@ export default function ({data, setStateValue}) {
         setStateValue('loaded', read());
         return;
     }
-    write({...read(), preferences: data.preferences, theme: data.theme});
+    const {theme: _legacyTheme, ...savedState} = read();
+    write({...savedState, preferences: data.preferences});
+    const app = document.querySelector('[data-testid="stApp"]');
+    let appClass = app?.className;
+    const themeObserver = new MutationObserver(() => {
+        if (app.className !== appClass) {
+            appClass = app.className;
+            setStateValue('themeRevision', appClass);
+        }
+    });
+    if (app) themeObserver.observe(app, {attributes: true, attributeFilter: ['class']});
     const route = [data.preferences.page_navigation, data.preferences.market_navigation,
         data.preferences.market_view_navigation].join('|');
     const saved = read().views?.[route] || {};
@@ -64,6 +74,7 @@ export default function ({data, setStateValue}) {
     window.addEventListener('pagehide', saveView);
     return () => {
         clearTimeout(timer);
+        themeObserver.disconnect();
         observer.disconnect();
         document.removeEventListener('scroll', onScroll, true);
         document.removeEventListener('click', onClick, true);

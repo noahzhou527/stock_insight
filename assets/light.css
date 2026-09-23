@@ -222,9 +222,7 @@ button[data-variant="segmented_control"][data-selected="true"] {
 [data-testid="stMetricDelta"] {
     background: #eef2f6;
 }
-/* Streamlit derives delta colors from the dark base theme (#ff6c6c / #5ce488),
-   which reads washed-out on light surfaces. Remap them to the same deep
-   variants used for colored markdown above so both themes look alike.
+/* Keep delta colors readable on the light metric cards.
    Default (US/KR, delta_color="normal"): up is green, down is red. */
 [data-testid="stMetricDelta"]:has([data-testid="stMetricDeltaIcon-Up"]),
 [data-testid="stMetricDelta"]:has([data-testid="stMetricDeltaIcon-Up"]) p {
@@ -310,6 +308,7 @@ button[data-variant="segmented_control"][data-selected="true"] {
 }
 [data-baseweb="select"],
 [data-baseweb="select"] > div,
+[data-baseweb="input"],
 [data-baseweb="input"] > div,
 [data-baseweb="textarea"] > div,
 [data-testid="stDateInput"] input,
@@ -403,6 +402,23 @@ button[data-variant="segmented_control"][data-selected="true"] {
 [data-testid="stSelectboxVirtualDropdown"] [role="option"]:hover [data-item-hl] {
     background: #e8f3f8 !important;
     color: #075985 !important;
+}
+/* 「No results」空结果下拉用的是另一个 testid
+   （stSelectboxVirtualDropdownEmpty），上面那条规则盖不到，
+   于是整块露出暗色基础主题的血统：#070b14（--canvas）套 #0d1422（--surface）。
+   空状态下弹层里只有这条提示，直接把它和所有包裹层一起刷成浅色。 */
+[data-baseweb="popover"]:has([data-testid="stSelectboxVirtualDropdownEmpty"]) div,
+[data-testid="stSelectboxVirtualDropdownEmpty"] {
+    background: #ffffff !important;
+    color: var(--ink) !important;
+}
+[data-testid="stSelectboxVirtualDropdownEmpty"] {
+    border: 1px solid var(--line-strong) !important;
+    box-shadow: 0 10px 28px rgba(15, 23, 42, 0.14) !important;
+}
+[data-testid="stSelectboxVirtualDropdownEmpty"] li,
+[data-testid="stSelectboxVirtualDropdownEmpty"] span {
+    color: #64748b !important;
 }
 [data-testid="stExpander"] details,
 [data-testid="stExpander"] summary {
@@ -511,36 +527,3 @@ hr { border-color: var(--line) !important; }
 .index-breadth-summary,
 .index-quote-row { border-color: var(--line); }
 .breadth-bar { background: #e2e8f0; }
-
-.st-key-theme_toggle button {
-    border-color: #cbd5e1;
-    background: linear-gradient(145deg, #ffffff 52%, #fff7e6 135%);
-    color: #334155;
-    box-shadow:
-        0 7px 20px rgba(15, 23, 42, 0.14),
-        0 0 0 1px rgba(255, 255, 255, 0.88),
-        inset 0 0 0 1px rgba(217, 119, 6, 0.08);
-}
-.st-key-theme_toggle button::after {
-    content: "";
-    position: absolute;
-    inset: 2px;
-    border: 1px solid rgba(255, 255, 255, 0.92);
-    border-radius: 50%;
-    pointer-events: none;
-}
-.st-key-theme_toggle button:hover {
-    border-color: #d6a85f;
-    background: linear-gradient(145deg, #ffffff 38%, #ffedc5 125%);
-    color: #0f172a;
-    box-shadow:
-        0 9px 24px rgba(15, 23, 42, 0.16),
-        0 0 0 3px rgba(245, 158, 11, 0.1),
-        inset 0 0 0 1px rgba(217, 119, 6, 0.12);
-}
-.st-key-theme_toggle button p::before {
-    content: "☀";
-    top: calc(50% + 1px);
-    color: #d97706;
-    font-size: 1.18rem;
-}

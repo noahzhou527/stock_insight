@@ -6,8 +6,16 @@ headless = true
 
 [theme]
 base = "dark"
+font = "sans serif"
+
+[theme.dark]
 primaryColor = "#22d3ee"
 backgroundColor = "#070b14"
 secondaryBackgroundColor = "#0d1422"
 textColor = "#e6edf7"
-font = "sans serif"
+
+[theme.light]
+primaryColor = "#22d3ee"
+backgroundColor = "#f4f6f8"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#172033"

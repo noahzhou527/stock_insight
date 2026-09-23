@@ -369,6 +369,7 @@
     .compact-amount-card {
         position: relative;
         box-sizing: border-box;
+        container-type: inline-size;
         min-height: 7rem;
         padding: 1rem 1.15rem;
         overflow: hidden;
@@ -387,23 +388,30 @@
     }
     .compact-amount-label {
         color: var(--muted);
-        font-size: 0.86rem;
-        font-weight: 600;
+        font-size: 0.82rem;
+        font-weight: 650;
+        letter-spacing: 0.015em;
     }
     .compact-amount-value {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.35rem;
+        margin-top: 0.18rem;
         color: var(--ink);
-        font-size: clamp(1.25rem, 1.65vw, 2rem);
+        font-size: clamp(0.95rem, 10cqi, 1.9rem);
+        font-weight: 500;
         letter-spacing: -0.035em;
-        line-height: 1.3;
-        white-space: normal;
+        line-height: 1.12;
+        white-space: nowrap;
     }
     .compact-amount-date {
-        display: block;
+        flex: 0 0 auto;
+        margin-left: auto;
         color: var(--muted);
-        font-size: clamp(0.65rem, 0.9vw, 1rem) !important;
+        font-size: clamp(0.6rem, 5cqi, 0.9rem) !important;
         font-weight: 500;
         letter-spacing: 0;
-        margin-top: 0.18rem;
     }
     [data-testid="stMetric"]:has([data-testid="stMetricDelta"]) > div {
         display: flex;
@@ -445,11 +453,25 @@
         color: #71839b;
         font-size: 0.76rem;
     }
+    /* 标题 + 副标题靠左成组，数据来源角标独占行末，靠 space-between 顶到最右。 */
+    .metric-section-title {
+        display: flex;
+        align-items: baseline;
+        gap: 0.7rem;
+    }
+    .metric-section-source {
+        white-space: nowrap;
+    }
     .secondary-metric-marker {
         display: none;
     }
+    [data-testid="stColumn"]:has(.secondary-metric-marker) [data-testid="stMetric"] {
+        container-type: inline-size;
+    }
     [data-testid="stColumn"]:has(.secondary-metric-marker) [data-testid="stMetricValue"] p {
-        font-size: clamp(1.35rem, 1.8vw, 2rem);
+        font-size: clamp(0.95rem, 10cqi, 1.9rem);
+        font-weight: 500;
+        white-space: nowrap;
     }
     [data-testid="stColumn"]:has(.cn-price-up) [data-testid="stMetricValue"],
     [data-testid="stColumn"]:has(.cn-price-up) [data-testid="stMetricValue"] p {
@@ -466,19 +488,6 @@
         border-radius: 0.85rem 0.85rem 0 0;
         background: linear-gradient(180deg, rgba(15, 25, 42, 0.74), rgba(10, 17, 29, 0.2));
         border-bottom: 1px solid var(--line);
-    }
-    .stTabs [role="tablist"]::after {
-        content: "分析模块 · 6 个视图";
-        position: static;
-        z-index: auto;
-        flex: 0 0 auto;
-        margin-left: auto;
-        padding-right: 0.32rem;
-        color: #667990;
-        font-size: 0.7rem;
-        font-weight: 650;
-        letter-spacing: 0.06em;
-        white-space: nowrap;
     }
     .stTabs [role="tab"] {
         position: relative;
@@ -549,6 +558,24 @@
         overflow: hidden;
         animation: dismiss-load-success 4.5s ease forwards;
     }
+    /* 高度为 0 的结构性元素仍然各占一个块间距（横向 flex 的 gap 与高度无关）。
+       浏览器状态桥接组件是纯功能元素，直接不参与布局。 */
+    [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stElementContainer"]:has(> .stBidiComponent) {
+        display: none;
+    }
+    /* 同理：上面那条动画只让提示自身消失，承载它的容器还在，仍留一个块间距。
+       把动画搬到容器上，4.5 秒后整个容器从布局里摘掉。 */
+    [data-testid="stMainBlockContainer"] > [data-testid="stVerticalBlock"] > [data-testid="stLayoutWrapper"]:has(> .st-key-data_load_success) {
+        overflow: hidden;
+        animation: dismiss-load-success 4.5s ease forwards;
+    }
+    /* 顶部导航与「市场快照」之间的分隔线。原生 hr 上下各留近 1.5rem，收紧到
+       与页面其他块间距同一量级，避免两段之间出现大段空白。 */
+    .section-divider {
+        height: 1px;
+        margin: 0.3rem 0 0.2rem;
+        background: var(--line);
+    }
     .stButton > button {
         border-radius: 0.7rem;
         border-color: var(--line-strong);
@@ -570,12 +597,22 @@
         border-color: var(--line-strong) !important;
         color: var(--ink) !important;
     }
-    [data-baseweb="select"] > div:focus-within,
+    [data-baseweb="select"] > div:focus-within {
+        border-color: rgba(34, 211, 238, 0.72) !important;
+        box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.10) !important;
+    }
+    /* focus 光晕一律打在最外层容器上。
+       内层 base-input 比外层窄——日期控件右侧给日历图标预留了 4px——
+       光晕若打在内层，会从右侧探出，再被外层的 overflow:hidden 裁成一条直角色块。 */
+    [data-baseweb="input"]:focus-within {
+        border-color: rgba(34, 211, 238, 0.72) !important;
+        box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.10) !important;
+    }
     [data-baseweb="input"] > div:focus-within,
     [data-testid="stDateInput"] input:focus,
     [data-testid="stNumberInput"] input:focus {
         border-color: rgba(34, 211, 238, 0.72) !important;
-        box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.10) !important;
+        box-shadow: none !important;
     }
     [data-baseweb="popover"],
     [data-baseweb="menu"],
@@ -847,64 +884,34 @@
     [data-testid="stSidebar"] [data-testid="stForm"] [data-testid="stTextInput"] [data-testid="InputInstructions"] {
         display: none;
     }
+    /* Streamlit 把多选输入框设成绝对定位（脱离文档流）。flex 容器里 abspos 子元素的
+       静态位置 = 内容盒起点，所以它会跟着本行的 padding-left 一起右移。
+       它本体只有 1px 宽却带 8px 左内边距，底色又是白色（浅色主题），
+       于是那块 9px 的白方块正好压在第一个标签头上：实测 tag1 左缘被从 x=48 挡到 x=57，
+       左圆角连同「5」的左半边一起被吃掉。暗色主题下该输入框底色透明，所以只有浅色露馅。
+       修法：让输入框不产生任何可见绘制（它本来就是个只用于过滤、不该被看见的输入框）。 */
     [data-testid="stMultiSelect"] div:has(> [data-baseweb="tag"]) > div:last-child {
         width: 1px !important;
         min-width: 1px !important;
         flex: 0 0 1px !important;
+        background: transparent !important;
     }
+    [data-testid="stMultiSelect"] div:has(> [data-baseweb="tag"]) > div:last-child input {
+        width: 1px !important;
+        min-width: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        box-shadow: none !important;
+        background: transparent !important;
+        caret-color: transparent !important;
+    }
+    /* 标签行整体右移 0.75rem 用 padding，不用 transform：
+       transform 不参与布局，标签恰好排满一行时最后一个会多探出 0.75rem，
+       被外层 overflow:hidden 把右圆角切掉（侧栏变窄/字号变大时必现）。
+       calc 里的 5px 是 baseweb 容器原有的左内边距。 */
     [data-testid="stMultiSelect"] div:has(> [data-baseweb="tag"]) {
+        padding-left: calc(0.75rem + 5px) !important;
         overflow: visible !important;
-    }
-    [data-testid="stMultiSelect"] [data-baseweb="tag"] {
-        transform: translateX(0.75rem);
-    }
-    .st-key-theme_toggle {
-        position: fixed;
-        top: 4.15rem;
-        right: 1.5rem;
-        z-index: 1000000;
-        width: 2.55rem;
-    }
-    .st-key-theme_toggle button {
-        position: relative;
-        width: 2.55rem;
-        height: 2.55rem;
-        min-height: 2.55rem;
-        margin: 0;
-        padding: 0;
-        border: 1px solid #34445a;
-        border-radius: 50%;
-        background: #131d2d;
-        color: #fbbf24;
-        box-shadow: 0 5px 18px rgba(0, 0, 0, 0.28);
-    }
-    .st-key-theme_toggle button:hover {
-        border-color: #fbbf24;
-        background: #1a2638;
-        color: #fde68a;
-    }
-    .st-key-theme_toggle button p {
-        width: 0;
-        overflow: visible;
-        color: transparent !important;
-        font-size: 0;
-    }
-    .st-key-theme_toggle button p::before {
-        content: "☾";
-        display: block;
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        color: #cbd5e1;
-        font-size: 1.28rem;
-        line-height: 1;
-    }
-    @media (max-width: 700px) {
-        .st-key-theme_toggle {
-            top: 3.75rem;
-            right: 0.75rem;
-        }
     }
     @media (prefers-reduced-motion: reduce) {
         .st-key-data_load_success {
@@ -912,7 +919,89 @@
             animation-delay: 3s;
         }
     }
-    .st-key-intraday_refresh_btn {
+    .st-key-intraday_refresh_btn,
+    .st-key-price_refresh_btn {
         align-items: flex-end;
+    }
+    .st-key-intraday_refresh_btn {
         margin-top: 1.5rem;
+    }
+    /* 浏览器记忆就绪前的骨架屏（见 styles.render_boot_skeleton）。
+       sync_browser_state() 会 st.stop() 空转一轮，那一轮不画东西就是「空白黑页」。
+       颜色一律走主题变量，这样浅色下自动是浅色骨架，不用在 light.css 里再打一遍补丁。 */
+    .boot-skeleton {
+        display: flex;
+        flex-direction: column;
+        gap: 1.1rem;
+        padding: 0.35rem 0 1.5rem;
+    }
+    .boot-skeleton span {
+        display: block;
+        border: 1px solid var(--line-strong);
+        border-radius: 0.6rem;
+        /* 用 --line ↔ --surface-raised 做底色：这套变量浅色/暗色下都跟画布有对比度，
+           而 --surface 在浅色下是纯白、跟画布几乎同色，骨架会看不见。 */
+        background: linear-gradient(
+            90deg,
+            var(--line) 0%,
+            var(--surface-raised) 50%,
+            var(--line) 100%
+        );
+        background-size: 220% 100%;
+        animation: boot-skeleton-sweep 1.5s ease-in-out infinite;
+    }
+    .boot-skeleton .sk-badge {
+        width: 7rem;
+        height: 0.7rem;
+        border-radius: 999px;
+    }
+    .boot-skeleton .sk-title {
+        width: 11rem;
+        height: 1.9rem;
+    }
+    .boot-skeleton .sk-sub {
+        width: min(22rem, 70%);
+        height: 0.72rem;
+        border-radius: 999px;
+    }
+    .boot-skeleton-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 1rem;
+    }
+    .boot-skeleton .sk-card {
+        height: 5.4rem;
+        border-radius: 1rem;
+    }
+    .boot-skeleton-side {
+        gap: 0.85rem;
+        padding-top: 0.5rem;
+    }
+    .boot-skeleton-side .sk-card {
+        height: 3.1rem;
+        border-radius: 0.8rem;
+    }
+    .boot-skeleton-note {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.82rem;
+        letter-spacing: 0.02em;
+    }
+    @keyframes boot-skeleton-sweep {
+        from {
+            background-position: 220% 0;
+        }
+        to {
+            background-position: -220% 0;
+        }
+    }
+    @media (max-width: 900px) {
+        .boot-skeleton-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .boot-skeleton span {
+            animation: none;
+        }
     }

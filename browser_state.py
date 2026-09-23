@@ -65,8 +65,6 @@ def sync_browser_state():
             st.stop()
         saved = result.loaded if isinstance(result.loaded, dict) else {}
         st.session_state.update(valid_preferences(saved.get("preferences")))
-        if saved.get("theme") in ("light", "dark"):
-            st.query_params["theme"] = saved["theme"]
         st.session_state["_browser_state_ready"] = True
         st.rerun()
     for key in KEYS:
@@ -78,6 +76,6 @@ def save_browser_state():
     preferences = {key: st.session_state[key] for key in KEYS if key in st.session_state}
     preferences = {key: value.isoformat() if isinstance(value, date) else value for key, value in preferences.items()}
     _storage(
-        data={"ready": True, "preferences": preferences, "theme": st.query_params.get("theme", "dark")},
+        data={"ready": True, "preferences": preferences},
         key="browser_state_writer", height=0,
     )

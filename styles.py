@@ -8,7 +8,7 @@ _ASSET_DIR = Path(__file__).resolve().parent / "assets"
 
 
 def is_light_theme() -> bool:
-    return st.query_params.get("theme") == "light"
+    return st.context.theme.type == "light"
 
 
 def load_styles(*names: str) -> None:
@@ -18,18 +18,43 @@ def load_styles(*names: str) -> None:
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
 
-def render_theme_toggle() -> None:
-    light = is_light_theme()
-    st.button(
-        "切换主题",
-        key="theme_toggle",
-        help=f"切换到{'暗色' if light else '亮色'}模式",
-        on_click=_toggle_theme,
-    )
+_BOOT_SKELETON = """
+<div class="boot-skeleton" aria-hidden="true">
+    <span class="sk-badge"></span>
+    <span class="sk-title"></span>
+    <span class="sk-sub"></span>
+    <div class="boot-skeleton-grid">
+        <span class="sk-card"></span>
+        <span class="sk-card"></span>
+        <span class="sk-card"></span>
+        <span class="sk-card"></span>
+    </div>
+    <p class="boot-skeleton-note">正在载入工作台…</p>
+</div>
+"""
+
+_BOOT_SKELETON_SIDEBAR = """
+<div class="boot-skeleton boot-skeleton-side" aria-hidden="true">
+    <span class="sk-card"></span>
+    <span class="sk-card"></span>
+    <span class="sk-card"></span>
+    <span class="sk-card"></span>
+</div>
+"""
+# 若运行中因旧模块缓存报 ImportError: render_boot_skeleton，需重启 Streamlit 进程。
 
 
-def _toggle_theme() -> None:
-    st.query_params["theme"] = "dark" if is_light_theme() else "light"
+def render_boot_skeleton() -> None:
+    """浏览器记忆就绪前先铺一层骨架。
+
+    sync_browser_state() 在拿到记忆之前会 st.stop() 空转一轮，那一轮如果什么都不画，
+    页面就只剩右上角的 Streamlit 工具栏和一整屏空白底色，像加载失败。
+    骨架跟随当前原生主题，浅色下就是浅色骨架。
+    侧栏也占一下位，免得侧栏出现时整页横向跳一下。
+    """
+    st.markdown(_BOOT_SKELETON, unsafe_allow_html=True)
+    with st.sidebar:
+        st.markdown(_BOOT_SKELETON_SIDEBAR, unsafe_allow_html=True)
 
 
 def themed_dataframe(frame):
