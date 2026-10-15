@@ -8,8 +8,8 @@ A Streamlit and Plotly app for personal stock research across US, Korean, and Ch
 
 Stock Insight currently supports:
 
-- US and Korean daily OHLCV and market-cap data through Yahoo Finance / `yfinance`
-- China A-share daily OHLCV data from Tonghuashun public data sources
+- Market data through official iFinD HTTP interfaces; overseas coverage depends on account permissions and confirmed symbols
+- China A-share daily OHLCV, minute bars, quotes and financial data from iFinD
 - A curated A-share universe focused on AI hardware and advanced manufacturing
 - Custom ticker input for US and China A-share markets, plus a curated Korean-stock view
 - Candlestick charts with MA, optional BBI, optional BOLL, and market-specific red/green colors
@@ -20,11 +20,12 @@ Stock Insight currently supports:
 - New-listing safeguards for incomplete history, including first-day K-line rendering and indicator/data-detail guards
 - A-share valuation overview with PE TTM, static PE, dynamic PE, and market cap
 - Full-universe A-share rankings for intraday gain, traded amount, market cap, and PE TTM
-- A 72-hour financial-news view combining Yahoo Finance, Tonghuashun, and Douyin hot topics
+- Original news view preserved in the public-data backup; excluded from the iFinD edition
 - Financial reports with the most recent four fiscal years and four reported quarters
 - RSI and MACD technical indicator panels
 - A dedicated indicator explanation page
 - CSV export for loaded historical price data
+- A-share watchlist overview with equal-weight daily performance, breadth, sortable quotes, and round-trip stock analysis; manual refresh by default, with optional 60-second automatic refresh during trading sessions determined by the official trading calendar
 
 ## Project Structure
 
@@ -36,7 +37,8 @@ stock_insight/
 |-- app_config.py          # App settings, page setup, and shared constants
 |-- sidebar.py             # Sidebar controls
 |-- *_view.py              # Financial report and investment insight views
-|-- data_fetcher.py        # Yahoo Finance and Tonghuashun data acquisition
+|-- ifind_data.py          # Active official iFinD HTTP provider
+|-- data_fetcher.py        # Legacy helpers and shared error/formatting utilities
 |-- market_snapshot.py     # Batch A-share rankings and snapshot cache
 |-- news_fetcher.py        # Three-source financial-news aggregation
 |-- analysis.py            # Technical indicator calculations
@@ -126,17 +128,44 @@ The app can be deployed on Streamlit Community Cloud.
 
 Streamlit will provide a public `*.streamlit.app` URL after deployment.
 
+## Two local versions
+
+There are two separate source directories on the development machine. They are not two modes selected by adding or removing an iFinD token.
+
+| Edition | Local source directory | Launcher (from this checkout) | Local URL | Data access |
+| --- | --- | --- | --- | --- |
+| iFinD | `D:\code\Repository_GitHub\stock_insight` | `start_ifind.bat` or `start.bat` | http://localhost:8501 | Official iFinD HTTP APIs; requires a valid Access Token or Refresh Token and the relevant account permissions |
+| Public data | `D:\code\Repository_GitHub\stock_insight_public_backup_20261010` | `start_public.bat` | http://localhost:8502 | Tonghuashun public pages, Yahoo Finance, and the original public-provider helpers; no iFinD token required for the public-data paths |
+
+- **This checkout is the iFinD edition.** Removing its token does not enable public-data fallback. Missing credentials or permissions are reported as unavailable data.
+- **The public-data edition is a separate local backup.** Its directory must exist beside this checkout for `start_public.bat` to work. Cloning this repository alone does not create or download that backup.
+- The public launcher reuses this checkout's `.venv` Python environment. Run the normal setup first if the environment does not exist.
+- The editions have separate source, data/cache directories, and watchlists. Their different ports also separate browser preferences. Changes in one directory are not automatically synchronized to the other.
+- The original public-data backup preserves the news view, which is excluded from the iFinD edition. Public data remain subject to source availability, network conditions, and field coverage.
+
 ## Tonghuashun iFinD Configuration
 
-Most A-share daily, valuation, intraday, and financial-report features use public Tonghuashun pages. `THS_ACCESS_TOKEN` is optional and currently kept for Beijing Stock Exchange prices and future official iFinD API support.
+This edition's active market-data paths use only official iFinD HTTP endpoints. News is excluded from navigation. Legacy public-provider helpers remain for their existing offline regression tests, but are not called by the application market-data services.
 
-For local development, copy `.streamlit/secrets.toml.example` to `.streamlit/secrets.toml` and add:
+Local credentials in `.streamlit/secrets.toml` (ignored by Git):
 
 ```toml
 THS_ACCESS_TOKEN = "your-iFinD-access-token"
+# Optional: obtain a valid Access Token automatically instead of replacing it manually.
+# THS_REFRESH_TOKEN = "your-iFinD-refresh-token"
 ```
 
-The real secrets file is ignored by Git.
+Token validity, account expiry, and available data permissions depend on your iFinD account. Refresh Token support does not extend an account trial or grant additional data permissions. Never commit credentials.
+
+### Verified trial coverage and limitations
+
+- Live A-share batch quotes, daily OHLCV/turnover, minute bars, security names, valuation, disclosed cumulative financial reports, Chinese trading dates, Shanghai index and all-A-share breadth have been tested with the trial account.
+- Financial dates after the actual disclosure date are excluded. Net profit is attributable-to-parent profit. Revenue uses the operating-revenue indicator; gross margin, debt ratio and operating cash flow per share are computed from iFinD fields. Dynamic PE is an explicitly labeled annualization of the latest reported cumulative profit.
+- Deducted net profit and capital spending indicator definitions remain unverified; these cells stay unavailable. The app does not scrape F10 to fill them.
+- US historical prices were retrieved, but US real-time prices returned an explicit permission error. Some overseas index codes returned no daily data. Korean equity codes, overseas financial statements, overseas breadth and KRW/USD indicators are not yet verified; the UI reports that limitation rather than changing providers. Official symbol overrides can be supplied in `[IFIND_CODES]` in the secrets file.
+- Only iFinD-origin data are stored under `data/cache/ifind/`. Daily bars reuse cached history and fetch overlapping recent dates on refresh. Missing traded amounts stay missing. Requests are batched (100 securities) and paced; full-market breadth refreshes at most every five minutes. Older cached snapshots are labeled stale.
+- Automatic refresh is off by default. Enable it separately for watchlist/rankings (60 seconds) or minute charts (5 minutes); polling fetches only during trading sessions, and ordinary control changes reuse the current session snapshot. Manual refresh remains available. Minute requests still retrieve the full trading day, at the reduced cadence. The all-A-share security list is saved to disk by date and reused after restarts and by local instances; concurrent first loads can still duplicate a request. Opening pages or clicking refresh may consume quota even with automatic refresh off.
+- These are polling HTTP interfaces, not exchange push feeds. No claim of tick-by-tick or zero-delay updates is made.
 
 ## Key Features
 
@@ -146,12 +175,12 @@ The real secrets file is ignored by Git.
 | **Interactive Charts** | Candlestick, MA, BBI, BOLL, RSI, MACD, and intraday charts |
 | **Volume/Amount Toggle** | Switch chart subplots between traded volume and traded amount |
 | **Valuation View** | PE TTM, static PE, dynamic PE, and market cap for A shares |
-| **Financial Reports** | Latest four fiscal years and four reported quarters; US/Korean reports use Yahoo Finance |
+| **Financial Reports** | Latest four disclosed A-share fiscal years and four reported quarters through iFinD |
 | **Korean Currency Toggle** | Switch Korean-stock prices, amounts, market cap, and financial reports between KRW and USD |
 | **New-listing Support** | Safely renders first-day or short-history listings without invalid indicators or widgets |
 | **A-share Rankings** | Full curated-universe rankings with live intraday refresh |
 | **Market Overview** | China and US benchmark indices, A-share turnover comparison, and market breadth |
-| **Financial News** | Recent Yahoo Finance, Tonghuashun, and Douyin financial headlines |
+| **Financial News** | Preserved only in the original public-data edition |
 | **Indicator Guide** | Built-in explanations for formulas and interpretation |
 | **Data Export** | Download raw data as CSV |
 
@@ -159,20 +188,21 @@ The real secrets file is ignored by Git.
 
 ### Data Acquisition
 
-| Market | Data | Source |
-| --- | --- | --- |
-| US stocks | Daily OHLCV, market cap, and financial reports | Yahoo Finance / `yfinance` |
-| Korean stocks | Daily OHLCV, market cap, intraday data, and financial reports | Yahoo Finance / `yfinance` |
-| China A shares | Daily OHLCV, valuation, intraday, financial reports | Tonghuashun public pages |
-| China A-share universe | Batch quote rankings | Eastmoney public quote pages |
-| Financial news | Headlines and hot topics | Yahoo Finance, Tonghuashun, Douyin |
-| Beijing Stock Exchange | Daily prices when configured | Tonghuashun iFinD token path |
+| Data | Active source |
+| --- | --- |
+| Daily OHLCV and traded amount | iFinD `cmd_history_quotation` |
+| Current quotes and batch rankings | iFinD `real_time_quotation` |
+| Minute bars | iFinD `high_frequency` |
+| Names, static PE | iFinD `basic_data_service` |
+| Financial reports | iFinD `date_sequence` |
+| All-A-share security list | iFinD `data_pool` |
+| Trading dates | iFinD `get_trade_dates` |
 
 ### Data Quality Notes
 
-- If a provider omits daily traded amount, the dashboard estimates it as `Close × Volume` so the amount chart remains continuous. Provider-supplied amounts always take precedence.
-- Korean daily-history rows with an implausible placeholder volume relative to nearby high-liquidity sessions are excluded rather than displayed as valid trading activity.
-- Current-day bars synthesized from intraday data are provisional and are replaced by the provider's settled daily bar when available.
+- iFinD daily prices use unadjusted prices, consistently with intraday bars; original currencies are retained.
+- The completed official daily bar is retained outside regular trading hours. Intraday-derived bars during trading are provisional.
+- Missing fields and permissions are explicit; no public data or demo data are substituted.
 
 ### Technical Indicators
 
@@ -201,7 +231,7 @@ The real secrets file is ignored by Git.
 ### Current Limitations
 
 1. Market data can be delayed, incomplete, or temporarily unavailable.
-2. Tonghuashun public page structures may change and require parser updates.
+2. Trial data coverage, overseas permissions and unverified indicator definitions limit available fields.
 3. Investment insights are rule-based and should not be treated as predictions.
 4. Financial metrics should be compared with companies in the same industry and similar growth stage.
 
@@ -213,11 +243,6 @@ The real secrets file is ignored by Git.
 - [ ] More international markets
 - [ ] More robust valuation and factor-analysis views
 
-## Optional Market Data API Keys
+## Credentials
 
-The market overview works without an API key, using the existing Tonghuashun,
-Eastmoney, and Yahoo Finance paths.  For a future, more stable commercial
-source of US market breadth, create a personal API key with a provider such as
-Polygon or Financial Modeling Prep, then store it locally in
-`.streamlit/secrets.toml` (for example `POLYGON_API_KEY = "..."`).  Never
-commit the real secrets file.
+The iFinD edition requires an authorized iFinD account and a local Access Token or Refresh Token. It does not read optional Polygon/FMP credentials or switch to other market-data providers. Use the backed-up public-data edition if iFinD access expires.
