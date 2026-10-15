@@ -6,35 +6,59 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import streamlit as st
 
-from data_fetcher import (
-    _fetch_a_share_year,
-    _fetch_from_yahoo,
-    DataFetchError,
-    fetch_a_share_financial_reports,
-    fetch_a_share_intraday,
-    fetch_yahoo_intraday,
-    fetch_a_share_valuation,
-    fetch_stock_data,
-    fetch_us_market_cap,
-    fetch_yahoo_financial_reports,
-    fetch_krw_usd_rate,
+from data_fetcher import DataFetchError
+from ifind_data import (
+    calendar,
+    financial_reports as fetch_a_share_financial_reports,
+    intraday as fetch_a_share_intraday,
+    intraday as fetch_yahoo_intraday,
+    valuation as fetch_a_share_valuation,
+    historical as fetch_stock_data,
+    market_cap as fetch_us_market_cap,
+    financial_reports as fetch_yahoo_financial_reports,
+    krw_usd_rate as fetch_krw_usd_rate,
 )
+from ifind_data import _cache_path, _read_frame, _write_frame
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def load_a_share_trade_dates(year: int) -> pd.DatetimeIndex:
+    """Use the official exchange calendar, retaining a verified disk copy."""
+    path = _cache_path("calendar", str(year))
+    cached, meta = _read_frame(path)
+    today = str(pd.Timestamp.now(tz="Asia/Shanghai").date())
+    if not cached.empty and meta.get("checked_date") == today:
+        return pd.DatetimeIndex(cached.index).normalize()
+    try:
+        dates = calendar(f"{year}-01-01", f"{year}-12-31", "CN").normalize()
+        _write_frame(path, pd.DataFrame({"trading": True}, index=dates.rename("Date")), checked_date=today)
+        return dates
+    except DataFetchError:
+        if not cached.empty:
+            return pd.DatetimeIndex(cached.index).normalize()
+        return pd.DatetimeIndex([])
+
+
+def a_share_session_state(now=None) -> dict:
+    now = pd.Timestamp(now if now is not None else datetime.now(ZoneInfo("Asia/Shanghai")))
+    now = now.tz_localize("Asia/Shanghai") if now.tzinfo is None else now.tz_convert("Asia/Shanghai")
+    day = now.tz_localize(None).normalize()
+    try:
+        dates = load_a_share_trade_dates(now.year)
+        if dates.empty:
+            return {"trading": False, "label": "交易日历暂不可用 · 自动刷新暂停", "calendar_ok": False}
+        if day not in dates:
+            return {"trading": False, "label": "休市 · 非交易日", "calendar_ok": True}
+    except DataFetchError:
+        return {"trading": False, "label": "交易日历暂不可用 · 自动刷新暂停", "calendar_ok": False}
+    clock = now.strftime("%H:%M:%S")
+    trading = "09:30:00" <= clock < "11:30:00" or "13:00:00" <= clock < "15:00:00"
+    label = "交易中" if trading else "09:30 开盘" if clock < "09:30:00" else "13:00 开盘" if clock < "13:00:00" else "已收盘"
+    return {"trading": trading, "label": label, "calendar_ok": True}
 
 
 def is_a_share_trading_session() -> bool:
-    now = datetime.now(ZoneInfo("Asia/Shanghai"))
-    if now.weekday() >= 5:
-        return False
-    current = now.time()
-    return (
-        datetime.strptime("09:30", "%H:%M").time()
-        <= current
-        <= datetime.strptime("11:30", "%H:%M").time()
-    ) or (
-        datetime.strptime("13:00", "%H:%M").time()
-        <= current
-        <= datetime.strptime("15:00", "%H:%M").time()
-    )
+    return a_share_session_state()["trading"]
 
 
 def is_market_trading_session(market: str) -> bool:
@@ -150,6 +174,11 @@ def load_data(ticker, start, end, market, ths_access_token):
             pass
 
     result = merge_intraday_daily_bar(historical, intraday, end)
+    trade_date = pd.Timestamp(intraday.attrs.get("trade_date", intraday.index[-1])).normalize()
+    if not historical.empty and historical.index[-1].normalize() >= trade_date and not is_market_trading_session(market):
+        if intraday.attrs.get("symbol_name"):
+            historical.attrs["symbol_name"] = intraday.attrs["symbol_name"]
+        return historical
     if result.empty and historical_error is not None:
         raise historical_error
     return result
@@ -177,17 +206,7 @@ def trim_to_display_range(frame, display_start, display_end):
 @st.cache_data(ttl=3600, show_spinner=False)
 def load_chart_sessions(start, end, market):
     """Use benchmark trading dates to size the chart, without padding stock data."""
-    start, end = pd.Timestamp(start), pd.Timestamp(end)
-    if market == "CN":
-        frames = [_fetch_a_share_year("1A0001", year) for year in range(start.year, end.year + 1)]
-        calendar = pd.concat(frames)
-    else:
-        calendar = _fetch_from_yahoo("^KS11" if market == "KR" else "^GSPC", start, end + pd.Timedelta(days=1))
-    dates = pd.DatetimeIndex(calendar.index).normalize().unique()
-    dates = dates[(dates >= start) & (dates <= end)]
-    if dates.empty:
-        raise DataFetchError("calendar_unavailable", "交易日历暂不可用。")
-    return dates
+    return calendar(start, end, market)
 
 
 @st.cache_data(ttl=300, show_spinner=False)
@@ -205,7 +224,7 @@ def load_financial_reports(ticker, market="CN", cache_version=2):
     """Load financial reports, with a versioned cache for parser upgrades."""
     if market.upper() == "CN":
         return fetch_a_share_financial_reports(ticker)
-    return fetch_yahoo_financial_reports(ticker)
+    return fetch_yahoo_financial_reports(ticker, market)
 
 
 @st.cache_data(ttl=3600, show_spinner=False)

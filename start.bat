@@ -17,4 +17,4 @@ if not exist ".venv\Scripts\python.exe" (
 
 echo [Stock Insight] 正在启动，浏览器将自动打开 http://localhost:8501
 start "" cmd /c "timeout /t 4 /nobreak >nul && start http://localhost:8501"
-".venv\Scripts\python.exe" -m streamlit run app.py --server.port 8501
+".venv\Scripts\python.exe" -m streamlit run app.py --server.port 8501 --server.address 127.0.0.1

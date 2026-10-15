@@ -8,6 +8,7 @@ import market_overviews
 
 # 导入自定义模块
 from data_fetcher import DataFetchError
+from ifind_data import access_token
 import a_share_universe
 from analysis import (
     calculate_bbi,
@@ -44,6 +45,7 @@ from services.market_data import (
 from investment_insights_view import render_investment_insights
 from financial_reports_view import render_financial_reports
 from browser_state import sync_browser_state, save_browser_state
+from watchlist import render_watchlist_overview, reset_watchlist_view, load_watchlist
 
 # Streamlit reruns the app in the same process, so refresh the separately
 # maintained stock universe before building sidebar options.
@@ -55,6 +57,7 @@ A_SHARE_UNIVERSE = a_share_universe.A_SHARE_UNIVERSE
 
 # ============ 页面配置 ============
 configure_page()
+st.caption("iFinD 试用版 · 市场数据仅使用官方 HTTP API · 无权限或缺失字段明确提示")
 # 旧版 ?theme= 只控制 CSS，已由 Streamlit 顶栏的原生主题取代。
 # 清掉旧参数，避免地址显示 dark 而用户实际选中 Light。
 if "theme" in st.query_params:
@@ -108,9 +111,10 @@ with st.container(key="top_navigation"):
     )
     page = st.segmented_control(
         "主导航",
-        ["行情分析", "市场总览", "指标说明", "新闻热点"],
+        ["行情分析", "市场总览", "指标说明"],
         default="行情分析",
         key="page_navigation",
+        on_change=reset_watchlist_view,
         label_visibility="collapsed",
         width="stretch",
     )
@@ -124,6 +128,7 @@ with st.container(key="top_navigation"):
                 ["美股", "A股", "韩股"],
                 default="A股",
                 key="market_navigation",
+                on_change=reset_watchlist_view,
                 label_visibility="collapsed",
                 width="stretch",
             )
@@ -140,6 +145,7 @@ with st.container(key="top_navigation"):
                 view_label,
                 view_options,
                 key="market_view_navigation",
+                on_change=reset_watchlist_view,
                 label_visibility="collapsed",
                 width="stretch",
             )
@@ -167,8 +173,20 @@ if market_label == "A股" and a_share_view == "股票池排行":
     st.stop()
 
 # ============ 侧边栏控制面板 ============
+if market_label == "A股" and a_share_view == "我的自选":
+    if not load_watchlist():
+        reset_watchlist_view()
+    if st.session_state.get("watchlist_view", "总览") == "总览":
+        render_watchlist_overview(A_SHARE_UNIVERSE)
+        st.stop()
+    st.button("← 返回自选池总览", on_click=reset_watchlist_view)
+
 market = {"A股": "CN", "美股": "US", "韩股": "KR"}[market_label]
-ths_access_token = get_ths_access_token()
+try:
+    ths_access_token = access_token()
+except DataFetchError as error:
+    st.error(str(error))
+    st.stop()
 controls = render_sidebar(
     market,
     A_SHARE_UNIVERSE,
@@ -216,11 +234,12 @@ def convert_krw_frame_to_usd(frame: pd.DataFrame, rate: float) -> pd.DataFrame:
     return result
 
 
-@st.fragment(run_every="30s" if is_market_trading_session(market) else None)
+@st.fragment(run_every="300s")
 def render_intraday_panel(selected_ticker, selected_market, display_market=None):
     session_key = f"intraday:{selected_market}:{selected_ticker}"
     stamp_key = f"intraday-refreshed-at:{selected_market}:{selected_ticker}"
     display_market = display_market or selected_market
+    automatic = st.toggle("分时自动刷新（交易时段每 5 分钟）", value=False, key=f"intraday-auto:{selected_market}:{selected_ticker}")
 
     metric_col, meta_col = st.columns([4, 7], vertical_alignment="top")
     with metric_col:
@@ -241,8 +260,12 @@ def render_intraday_panel(selected_ticker, selected_market, display_market=None)
     # 保留旧快照直到新数据抓取成功；手动刷新和定时刷新每轮最多抓取一次。
     if manually_refreshed:
         load_intraday.clear()
-    should_fetch = manually_refreshed or is_market_trading_session(selected_market) or session_key not in st.session_state
+    checked_key = f"intraday-checked-at:{selected_market}:{selected_ticker}"
+    checked_at = pd.Timestamp.now().timestamp()
+    due = automatic and is_market_trading_session(selected_market) and checked_at - st.session_state.get(checked_key, 0) >= 300
+    should_fetch = manually_refreshed or due or session_key not in st.session_state
     if should_fetch:
+        st.session_state[checked_key] = checked_at
         error = None
         if manually_refreshed:
             with st.spinner("正在刷新当日分时数据…"):
@@ -282,7 +305,7 @@ def render_intraday_panel(selected_ticker, selected_market, display_market=None)
     except (TypeError, ValueError, IndexError):
         bar_time = "—"
     in_session = is_market_trading_session(selected_market)
-    auto_hint = "交易时段每 30 秒自动刷新" if in_session else "非交易时段已停止自动刷新，可点「立即刷新」手动抓取"
+    auto_hint = "交易时段每 5 分钟自动刷新" if automatic and in_session else "非交易时段已暂停自动刷新" if automatic else "手动刷新模式，可点「立即刷新」更新"
     refreshed_at = st.session_state.get(stamp_key, "—")
     st.caption(f"分时数据截至 {bar_time} · 本地快照抓取于 {refreshed_at} · {auto_hint}")
 
@@ -292,8 +315,8 @@ loading_message = st.empty()
 
 def data_source_label(source):
     """标题行角标用的数据来源文案；异常来源返回 None，那种情况仍走横幅提示。"""
-    if source in {"同花顺", "同花顺 iFinD"}:
-        return "数据来源：同花顺"
+    if source.startswith("同花顺 iFinD"):
+        return f"数据来源：{source}"
     if source == "Yahoo Finance":
         return "Data source: Yahoo Finance"
     return None
@@ -322,7 +345,7 @@ try:
         st.error(f"无法获取 {ticker} 的数据，请检查股票代码是否正确。")
         st.stop()
 
-    data_source = indicator_history_df.attrs.get("source", "Yahoo Finance")
+    data_source = indicator_history_df.attrs.get("source", "同花顺 iFinD")
     live_name = indicator_history_df.attrs.get("symbol_name")
     if market == "CN" and live_name:
         a_share_live_names = dict(st.session_state.get("a_share_live_names", {}))
@@ -354,14 +377,8 @@ try:
         st.success(f"成功加载 {ticker} 从 {start_date} 到 {end_date} 的数据")
     # 正常来源的出处并入「市场快照」标题行显示（见 render_snapshot_panel），
     # 这里只保留异常来源的横幅——缓存 / 演示数据是需要显眼警示的情况。
-    if data_source == "同花顺本地缓存":
-        st.warning("同花顺当前不可用，正在显示本地缓存数据。")
-    elif data_source == "local cache":
-        st.warning("Yahoo Finance 当前不可用，正在显示本地缓存数据。")
-    elif data_source == "demo data":
-        st.warning("Yahoo Finance 和备用数据源当前不可用，正在显示演示数据；请勿用于真实投资判断。")
-    elif data_source_label(data_source) is None:
-        st.info(f"Yahoo Finance 当前不可用，已自动切换到 {data_source}。")
+    if indicator_history_df.attrs.get("stale"):
+        st.warning("iFinD 当前请求失败，正在显示此前保存的 iFinD 数据；请留意数据日期。")
     if indicator_history_df.attrs.get("includes_intraday_daily_bar"):
         st.markdown(
             '<div class="settlement-note-right">'
@@ -805,7 +822,7 @@ with tab1:
         latest_bar_date = "—"
     st.caption(
         f"日线最新一根 {latest_bar_date} · 本地快照时点 "
-        f"{st.session_state.get(price_refresh_stamp_key, '—')} · 点「立即刷新」重抓日线与分时"
+        f"{st.session_state.get(price_refresh_stamp_key, '—')} · 点「立即刷新」更新日线与分时"
     )
 
 # ============ 当日分时 ============
@@ -926,6 +943,6 @@ with tab5:
 st.markdown("---")
 st.markdown("""
 <div class="app-footer">
-    <p>Stock Insight | Personal market analysis dashboard | Data: Tonghuashun, Yahoo Finance, Eastmoney & Douyin</p>
+    <p>Stock Insight | iFinD Trial | Market data: iFinD HTTP API</p>
 </div>
 """, unsafe_allow_html=True)

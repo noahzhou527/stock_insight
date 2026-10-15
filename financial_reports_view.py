@@ -43,6 +43,10 @@ def render_financial_reports(
             if market == "KR" and display_market == "US":
                 source_note = f"；金额与每股收益按参考汇率换算为美元（1 美元 = {1 / krw_usd_rate:,.2f} 韩元）。"
             st.caption(f"数据来源：{financial_reports.attrs.get('source', '—')}{source_note}")
+            if financial_reports.attrs.get("financial_basis"):
+                st.caption(financial_reports.attrs["financial_basis"])
+            if financial_reports.attrs.get("unavailable_fields"):
+                st.caption("以下 iFinD 指标尚未核实，显示为空：" + "、".join(financial_reports.attrs["unavailable_fields"]))
     
             if market == "CN" and (not annual_reports.empty or not quarter_reports.empty):
                 st.markdown("#### 财报趋势")

@@ -7,8 +7,10 @@ import pandas as pd
 from data_fetcher import (
     DataFetchError,
     _financial_amount_to_yuan,
-    fetch_a_share_annual_investment_spending,
-    fetch_a_share_financial_reports,
+)
+from ifind_data import (
+    investment_spending as fetch_a_share_annual_investment_spending,
+    financial_reports as fetch_a_share_financial_reports,
 )
 
 

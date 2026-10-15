@@ -47,9 +47,19 @@ def format_financial_report_table(
     market: str,
     currency_multiplier: float = 1.0,
 ) -> pd.DataFrame:
-    """Apply readable currency units to Yahoo financial-statement amounts."""
+    """Apply readable currency and percentage units to financial statements."""
     if market.upper() == "CN":
-        return frame
+        result = frame.copy()
+        for column in ("营业总收入", "净利润", "扣非净利润"):
+            if column in result:
+                result[column] = result[column].map(lambda value: format_amount(_number(value), "CN") if _number(value) is not None else "—")
+        for column in ("营收同比", "净利润同比", "销售毛利率", "净资产收益率", "资产负债率"):
+            if column in result:
+                result[column] = result[column].map(lambda value: f"{_number(value):.2f}%" if _number(value) is not None else "—")
+        for column in ("基本每股收益", "每股经营现金流"):
+            if column in result:
+                result[column] = result[column].map(lambda value: f"{_number(value):.2f}" if _number(value) is not None else "—")
+        return result
     result = frame.copy()
     for column in ("营业总收入", "毛利润", "营业利润", "净利润"):
         if column in result:

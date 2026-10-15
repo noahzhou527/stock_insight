@@ -66,8 +66,8 @@ class MarketOverviewDataTests(unittest.TestCase):
         self.assertNotIn(pd.Timestamp("2026-06-10"), filtered.index)
         self.assertEqual(filtered.attrs["filtered_suspicious_daily_bars"], 1)
 
-    @patch("services.market_overview_data._ths_intraday")
-    @patch("services.market_overview_data._ths_daily")
+    @patch("services.market_overview_data.intraday")
+    @patch("services.market_overview_data.historical")
     def test_cn_index_uses_latest_completed_amount_and_comparison(self, mock_daily, mock_intraday):
         today = pd.Timestamp.now(tz=ZoneInfo("Asia/Shanghai")).tz_localize(None).normalize()
         mock_daily.return_value = pd.DataFrame(
@@ -75,35 +75,25 @@ class MarketOverviewDataTests(unittest.TestCase):
             index=[today - pd.Timedelta(days=2), today - pd.Timedelta(days=1)],
         )
         mock_intraday.side_effect = overview.DataFetchError("unavailable", "no intraday")
-        result = overview.fetch_cn_index({"name": "测试指数", "symbol": "1A0001", "display_code": "000001"})
+        with patch("services.market_overview_data.quotes", side_effect=overview.DataFetchError("unavailable", "no quote")):
+            result = overview.fetch_cn_index({"name": "测试指数", "symbol": "1A0001", "display_code": "000001"})
         self.assertEqual(result["amount"], 120_000_000.0)
         self.assertEqual(result["previous_amount"], 100_000_000.0)
         self.assertEqual(result["amount_change"], 20_000_000.0)
         self.assertEqual(result["amount_change_pct"], 20.0)
 
-    @patch("services.market_overview_data.time.sleep")
-    @patch("services.market_overview_data.requests.Session", return_value=_FailingSession())
-    def test_cn_breadth_keeps_last_successful_snapshot_when_eastmoney_fails(self, _mock_session, _sleep):
-        previous = overview._LAST_CN_MARKET_BREADTH
-        overview._LAST_CN_MARKET_BREADTH = {"up": 10, "flat": 2, "down": 8, "total": 20, "source": "东方财富全 A 股快照"}
-        try:
-            breadth = overview.fetch_cn_market_breadth()
-        finally:
-            overview._LAST_CN_MARKET_BREADTH = previous
-        self.assertTrue(breadth["stale"])
-        self.assertEqual(breadth["up"], 10)
-        self.assertIn("上次成功快照", breadth["source"])
+    @patch("services.market_overview_data.market_breadth")
+    def test_cn_breadth_routes_exclusively_to_ifind(self, breadth):
+        breadth.return_value = {"up": 10, "flat": 2, "down": 8, "total": 20, "source": "iFinD"}
+        self.assertEqual(overview.fetch_cn_market_breadth()["total"], 20)
+        breadth.assert_called_once_with("CN")
 
-    @patch("services.market_overview_data.time.sleep")
-    @patch("services.market_overview_data.requests.Session", return_value=_FailingSession())
-    def test_cn_breadth_does_not_mislabel_watchlist_as_full_market(self, _mock_session, _sleep):
-        previous = overview._LAST_CN_MARKET_BREADTH
-        overview._LAST_CN_MARKET_BREADTH = None
-        try:
-            with self.assertRaises(overview.DataFetchError):
-                overview.fetch_cn_market_breadth()
-        finally:
-            overview._LAST_CN_MARKET_BREADTH = previous
+    @patch("services.market_overview_data.market_breadth")
+    def test_cn_breadth_does_not_mislabel_watchlist_as_full_market(self, breadth):
+        breadth.side_effect = overview.DataFetchError("unavailable", "no data")
+        with self.assertRaises(overview.DataFetchError):
+            overview.fetch_cn_market_breadth()
+
 
 class CurrentDailyBarTests(unittest.TestCase):
     def test_appends_latest_intraday_session_as_daily_bar(self):

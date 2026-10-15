@@ -121,6 +121,14 @@ button[aria-label="Expand sidebar"] svg {
     background: rgba(15, 159, 143, 0.07);
 }
 
+.overview-brand {
+    background: var(--surface);
+    border-color: var(--line);
+    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+.overview-brand strong { color: var(--ink); }
+.overview-brand span { color: var(--brand-strong); }
+
 .st-key-top_navigation {
     border-color: #d8e0e9;
     background: rgba(255, 255, 255, 0.88);

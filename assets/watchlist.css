@@ -1,0 +1,36 @@
+/* Native watchlist tables: use column_config for alignment and sizing. */
+.block-container:has(.st-key-watchlist-page),
+[data-testid="stMainBlockContainer"]:has(.st-key-watchlist-page) {
+    max-width: 1440px;
+    padding: 4rem clamp(16px, 3vw, 48px) 2rem;
+}
+.st-key-watchlist-page { --watch-up: #c93636; --watch-down: #15803d; min-width: 0; }
+.st-key-watchlist-page [data-testid="stVerticalBlock"] { gap: 12px; }
+.st-key-watchlist-toolbar [data-testid="stColumn"] { min-width: 0; }
+.watch-meta { color: var(--muted); font-size: 13px; line-height: 1.8; }
+.st-key-watchlist-stats [data-testid="stMetric"] {
+    border: 1px solid var(--line); background: var(--surface); border-radius: 10px;
+    padding: 14px 16px; min-height: 105px;
+}
+.st-key-watchlist-stats [data-testid="stMetricLabel"] p { font-size: 13px; }
+.st-key-watchlist-stats [data-testid="stMetricValue"] p { font-size: 28px; font-variant-numeric: tabular-nums; }
+.st-key-watchlist-up-metric [data-testid="stMetricValue"] p { color: var(--watch-up); }
+.st-key-watchlist-down-metric [data-testid="stMetricValue"] p { color: var(--watch-down); }
+.st-key-watchlist-flat-metric [data-testid="stMetricValue"] p { color: var(--ink); }
+.watch-up { color: var(--watch-up); }
+.watch-down { color: var(--watch-down); }
+.watch-flat { color: var(--ink); }
+.watch-leaders { display: flex; gap: 10px; flex-wrap: wrap; }
+.watch-leader { padding: 6px 10px; border: 1px solid currentColor; border-radius: 6px; font-size: 13px; font-weight: 600; }
+.watch-footer { color: var(--ink); font-size: 13px; line-height: 1.8; opacity: .85; }
+@media (prefers-color-scheme: dark) {
+    .st-key-watchlist-page { --watch-up: #ff7a85; --watch-down: #53d49a; }
+}
+@media (max-width: 720px) {
+    .block-container:has(.st-key-watchlist-page), [data-testid="stMainBlockContainer"]:has(.st-key-watchlist-page) { padding-inline: 16px; }
+    .st-key-watchlist-controls [data-testid="stHorizontalBlock"] { flex-wrap: wrap; }
+    .st-key-watchlist-controls [data-testid="stColumn"]:first-child { width: 100%; flex: 1 1 100%; }
+    .st-key-watchlist-controls [data-testid="stColumn"]:nth-child(n+2) { min-width: 0; flex: 1 1 40%; }
+    .st-key-watchlist-stats > [data-testid="stLayoutWrapper"] > [data-testid="stHorizontalBlock"] { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .st-key-watchlist-stats [data-testid="stColumn"] { width: 100%; min-width: 0; }
+}

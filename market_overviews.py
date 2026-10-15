@@ -48,7 +48,7 @@ def load_recent_financial_news(hours=72):
     return fetch_recent_financial_news(hours=hours)
 
 
-@st.cache_data(ttl=30, show_spinner=False)
+@st.cache_data(ttl=300, show_spinner=False)
 def load_cn_market_overview(cache_version=MARKET_OVERVIEW_CACHE_VERSION):
     indices = fetch_market_indices("CN")
     try:
@@ -116,7 +116,7 @@ def _index_card_html(item: dict, market: str) -> str:
         '<small>成分股涨跌</small>'
         f'<b>{breadth_detail}</b>'
         '</div>'
-        if market == "CN" else ""
+        if market == "CN" and constituent else ""
     )
 
     return (
@@ -144,9 +144,9 @@ def _render_breadth(breadth: dict, market: str) -> None:
         st.warning(breadth["error"])
         return
     if breadth.get("fallback") == "watchlist":
-        st.caption("东方财富全市场快照暂时不可用，以下为本地股票池统计（非全市场）。")
+        st.caption("全市场快照暂时不可用，以下为本地股票池统计（非全市场）。")
     elif breadth.get("stale"):
-        st.caption("东方财富最新快照暂时不可用，以下为最近一次成功统计。")
+        st.caption("iFinD 最新快照暂时不可用，以下为最近一次成功统计。")
     up, flat, down, total = (int(breadth.get(key, 0)) for key in ("up", "flat", "down", "total"))
     up_pct = up / total * 100 if total else 0
     flat_pct = flat / total * 100 if total else 0
@@ -383,18 +383,24 @@ def _render_financial_ranking_table(financial_ranking):
             columns[5].markdown("—" if pd.isna(growth) else f"<span style='color:{color}'>{growth:+.2f}%</span>", unsafe_allow_html=True)
 
 
-@st.fragment(run_every="30s" if is_a_share_trading_session() else None)
+@st.fragment(run_every="60s")
 def render_a_share_rankings(a_share_universe):
     header, action = st.columns([5, 1])
     with header:
         st.markdown("## A股股票池排行\n覆盖全部产业链标的，实时指标与最新完成日 K 估值分开计算。")
     with action:
         refreshed = st.button("立即刷新", key="refresh-a-share-rankings", width="stretch")
+    automatic = st.toggle("自动刷新（交易时段每 60 秒）", value=False, key="rankings_auto_refresh")
     if refreshed:
         load_a_share_market_snapshot.clear()
     try:
         with st.spinner("正在更新 A股股票池快照..."):
-            snapshot = load_a_share_market_snapshot(a_share_universe)
+            checked_at = pd.Timestamp.now().timestamp()
+            due = automatic and is_a_share_trading_session() and checked_at - st.session_state.get("_rankings_checked_at", 0) >= 60
+            if refreshed or due or "_rankings_snapshot" not in st.session_state:
+                st.session_state["_rankings_checked_at"] = checked_at
+                st.session_state["_rankings_snapshot"] = load_a_share_market_snapshot(a_share_universe)
+            snapshot = st.session_state["_rankings_snapshot"]
     except Exception as error:
         st.error(f"排行榜暂时无法更新：{error}")
         return
@@ -404,7 +410,8 @@ def render_a_share_rankings(a_share_universe):
     quote_times = snapshot.get("quote_time")
     latest = str(quote_times.dropna().max()) if quote_times is not None and quote_times.notna().any() else ""
     stale_count = int(snapshot.get("stale", pd.Series(False, index=snapshot.index)).fillna(False).sum())
-    st.caption(f"数据来源：东方财富 · {'交易时段每 30 秒刷新' if is_a_share_trading_session() else '非交易时段停止自动刷新'}{f' · 数据时间 {latest}' if latest else ''}{f' · {stale_count} 只使用缓存' if stale_count else ''}")
+    refresh_hint = "交易时段每 60 秒刷新" if automatic and is_a_share_trading_session() else "自动刷新已暂停" if automatic else "手动刷新模式"
+    st.caption(f"数据来源：{snapshot.attrs.get('source', '同花顺 iFinD')} · {refresh_hint}{f' · 数据时间 {latest}' if latest else ''}{f' · {stale_count} 只使用缓存' if stale_count else ''}")
     tabs = st.tabs([*[config[0] for config in RANKING_CONFIG.values()], "最新季度净利润"])
     for tab, metric in zip(tabs, RANKING_CONFIG):
         with tab:

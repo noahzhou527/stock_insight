@@ -221,4 +221,4 @@ def render_investment_insights(
                     "投资支出占营收（%）": st.column_config.NumberColumn(format="%.2f%%"),
                 },
             )
-            st.caption("投资支出采用“购建固定资产、无形资产和其他长期资产支付的现金”口径。")
+            st.caption("数据来源：同花顺 iFinD；投资支出指标尚未核实，暂显示为空。")

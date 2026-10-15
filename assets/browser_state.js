@@ -10,11 +10,48 @@ export default function ({data, setStateValue}) {
         catch { /* Storage may be disabled; the application still works. */ }
     };
     if (!data.ready) {
-        setStateValue('loaded', read());
+        setStateValue('loaded', {...read(), viewport_width: window.innerWidth});
         return;
     }
     const {theme: _legacyTheme, ...savedState} = read();
+    let compact = window.innerWidth < 720;
+    const onResize = () => {
+        const next = window.innerWidth < 720;
+        if (next !== compact) {
+            compact = next;
+            setStateValue('viewportWidth', window.innerWidth);
+        }
+    };
+    window.addEventListener('resize', onResize);
     write({...savedState, preferences: data.preferences});
+    // Native dataframe exposes its sort arrow through accessible column headers.
+    // Store only public UI state; do not inspect React internals or quote values.
+    let hadNativeArrow = false;
+    const saveNativeSort = () => {
+        const grid = document.querySelector('[class*="st-key-watchlist-grid-"] [data-testid="stDataFrame"]');
+        if (!grid) return;
+        const current = read();
+        const previous = current.watchlistTable || {};
+        const baseSort = data.preferences.watchlist_sort;
+        const next = previous.baseSort && previous.baseSort !== baseSort ? {baseSort, sort: null} : {...previous, baseSort};
+        const header = [...grid.querySelectorAll('[role="columnheader"]')].find(h => /^[↑↓]/.test(h.textContent.trim()));
+        if (header) {
+            hadNativeArrow = true;
+            const text = header.textContent.trim();
+            const field = data.watchlistLabels?.[text.slice(1).trim()];
+            if (field && field !== 'intraday') next.sort = {field, ascending: text.startsWith('↑')};
+        } else if (hadNativeArrow) {
+            next.sort = null;
+            hadNativeArrow = false;
+        }
+        if (JSON.stringify(previous) !== JSON.stringify(next)) {
+            write({...current, watchlistTable: next});
+            setStateValue('watchlistTable', next);
+        }
+    };
+    const tableObserver = new MutationObserver(saveNativeSort);
+    tableObserver.observe(document.body, {childList: true, subtree: true, characterData: true});
+    saveNativeSort();
     const app = document.querySelector('[data-testid="stApp"]');
     let appClass = app?.className;
     const themeObserver = new MutationObserver(() => {
@@ -80,5 +117,7 @@ export default function ({data, setStateValue}) {
         document.removeEventListener('click', onClick, true);
         document.removeEventListener('toggle', saveView, true);
         window.removeEventListener('pagehide', saveView);
+        window.removeEventListener('resize', onResize);
+        tableObserver.disconnect();
     };
 }

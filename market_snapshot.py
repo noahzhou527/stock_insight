@@ -30,6 +30,7 @@ CACHE_PATH = (
     Path(__file__).resolve().parent
     / "data"
     / "cache"
+    / "ifind"
     / "a_share_market_snapshot.csv"
 )
 CHINA_TZ = ZoneInfo("Asia/Shanghai")
@@ -397,6 +398,10 @@ def _save_snapshot_cache(frame: pd.DataFrame) -> None:
     snapshot = _coerce_snapshot_frame(frame)
     cache_dir = CACHE_PATH.parent
     with _CACHE_LOCK:
+        previous = _load_snapshot_cache()
+        snapshot = pd.concat([previous, snapshot], ignore_index=True).drop_duplicates(
+            subset="ticker", keep="last"
+        )
         cache_dir.mkdir(parents=True, exist_ok=True)
         temp_path: Path | None = None
         try:
@@ -450,10 +455,14 @@ def _merge_snapshot_rows(
         code = ticker.split(".", maxsplit=1)[0]
         if code in live_by_code:
             quote = dict(live_by_code[code])
-            quote.pop("provider_name", None)
+            provider_name = quote.pop("provider_name", None)
+            if not universe_row["name"] and provider_name:
+                universe_row = {**universe_row, "name": str(provider_name)}
             stale = False
         elif ticker in cached_by_ticker:
             cached = cached_by_ticker[ticker]
+            if not universe_row["name"] and cached.get("name"):
+                universe_row = {**universe_row, "name": cached["name"]}
             quote = {column: cached.get(column) for column in SNAPSHOT_COLUMNS[3:-1]}
             stale = True
         else:
@@ -465,64 +474,27 @@ def _merge_snapshot_rows(
 
 
 def fetch_a_share_market_snapshot(universe_rows) -> pd.DataFrame:
-    """Fetch the whole A-share universe in one batch with cache fallback.
-
-    ``market_cap`` and ``pe_ttm`` are normalized to the close of the latest
-    completed daily bar. Before 15:00 on the current trading date that means
-    yesterday's close; after the close and on non-trading days it means the
-    latest price returned by Eastmoney.
-    """
-
+    """Fetch iFinD batch quotes, falling back only to the separate iFinD cache."""
+    from ifind_data import snapshot, SOURCE
     rows = _normalize_universe_rows(universe_rows)
     if not rows:
         return pd.DataFrame(columns=SNAPSHOT_COLUMNS)
-
-    cached = _load_snapshot_cache()
-    cached_by_ticker = _cached_by_ticker(cached)
-    request_error: Exception | None = None
+    cached = _cached_by_ticker(_load_snapshot_cache())
     try:
-        raw_rows = _request_market_rows(rows)
-        live_by_code = _parse_live_rows(raw_rows, _china_now())
-    except Exception as error:
-        request_error = error
-        live_by_code = {}
-
-    requested_codes = {row["ticker"].split(".", maxsplit=1)[0] for row in rows}
-    live_by_code = {
-        code: quote for code, quote in live_by_code.items() if code in requested_codes
-    }
-    if not live_by_code:
-        matching_cache = {
-            row["ticker"]: cached_by_ticker[row["ticker"]]
-            for row in rows
-            if row["ticker"] in cached_by_ticker
-        }
-        if not matching_cache:
-            message = "A-share market snapshot is unavailable and no cache exists"
-            if request_error is not None:
-                raise MarketSnapshotError(message) from request_error
-            raise MarketSnapshotError(message)
-        result = _merge_snapshot_rows(rows, {}, matching_cache)
-        result.attrs.update(
-            {
-                "source": "local cache",
-                "live_count": 0,
-                "stale_count": int(result["stale"].sum()),
-                "fallback_reason": str(request_error) if request_error else "empty response",
-            }
-        )
+        frame = snapshot(rows)
+        live = {row['ticker'].split('.')[0]: row for row in frame.to_dict('records') if not row['stale']}
+        if not live:
+            raise MarketSnapshotError('iFinD 未返回有效行情')
+        result = _merge_snapshot_rows(rows, live, cached)
+        _save_snapshot_cache(result)
+        result.attrs.update(source=SOURCE, live_count=len(live), stale_count=int(result['stale'].sum()))
         return result
-
-    result = _merge_snapshot_rows(rows, live_by_code, cached_by_ticker)
-    _save_snapshot_cache(result)
-    result.attrs.update(
-        {
-            "source": "Eastmoney",
-            "live_count": len(live_by_code),
-            "stale_count": int(result["stale"].sum()),
-        }
-    )
-    return result
+    except Exception as error:
+        if not any(row['ticker'] in cached for row in rows):
+            raise MarketSnapshotError(str(error)) from error
+        result = _merge_snapshot_rows(rows, {}, cached)
+        result.attrs.update(source=SOURCE + ' · 旧缓存', live_count=0, stale_count=int(result['stale'].sum()), fallback_reason=str(error))
+        return result
 
 
 def rank_snapshot(frame: pd.DataFrame, metric: str) -> pd.DataFrame:
