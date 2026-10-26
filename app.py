@@ -44,6 +44,7 @@ from services.market_data import (
 from investment_insights_view import render_investment_insights
 from financial_reports_view import render_financial_reports
 from browser_state import sync_browser_state, save_browser_state
+from watchlist import render_watchlist_overview, reset_watchlist_view, load_watchlist
 
 # Streamlit reruns the app in the same process, so refresh the separately
 # maintained stock universe before building sidebar options.
@@ -111,6 +112,7 @@ with st.container(key="top_navigation"):
         ["行情分析", "市场总览", "指标说明", "新闻热点"],
         default="行情分析",
         key="page_navigation",
+        on_change=reset_watchlist_view,
         label_visibility="collapsed",
         width="stretch",
     )
@@ -124,6 +126,7 @@ with st.container(key="top_navigation"):
                 ["美股", "A股", "韩股"],
                 default="A股",
                 key="market_navigation",
+                on_change=reset_watchlist_view,
                 label_visibility="collapsed",
                 width="stretch",
             )
@@ -140,6 +143,7 @@ with st.container(key="top_navigation"):
                 view_label,
                 view_options,
                 key="market_view_navigation",
+                on_change=reset_watchlist_view,
                 label_visibility="collapsed",
                 width="stretch",
             )
@@ -167,6 +171,14 @@ if market_label == "A股" and a_share_view == "股票池排行":
     st.stop()
 
 # ============ 侧边栏控制面板 ============
+if market_label == "A股" and a_share_view == "我的自选":
+    if not load_watchlist():
+        reset_watchlist_view()
+    if st.session_state.get("watchlist_view", "总览") == "总览":
+        render_watchlist_overview(A_SHARE_UNIVERSE)
+        st.stop()
+    st.button("← 返回自选池总览", on_click=reset_watchlist_view)
+
 market = {"A股": "CN", "美股": "US", "韩股": "KR"}[market_label]
 ths_access_token = get_ths_access_token()
 controls = render_sidebar(

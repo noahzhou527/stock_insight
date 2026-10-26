@@ -1,4 +1,8 @@
 import unittest
+import tempfile
+from types import SimpleNamespace
+from pathlib import Path
+from unittest.mock import patch
 
 import pandas as pd
 from datetime import date
@@ -7,6 +11,7 @@ from browser_state import valid_preferences
 from financial_rankings import _annual_comparison_row
 from formatters import format_statistics
 from new_listing import get_new_listing_state
+from watchlist import summarize_watchlist, add_watchlist_item, load_watchlist, save_watchlist
 
 
 class BrowserPreferencesTests(unittest.TestCase):
@@ -20,6 +25,111 @@ class BrowserPreferencesTests(unittest.TestCase):
         self.assertEqual(result, {
             "display_start": date(2026, 8, 1), "ma_periods": [5, 10], "show_bbi": True,
         })
+
+
+class WatchlistTests(unittest.TestCase):
+    def test_summary_excludes_cache_old_dates_and_missing_changes(self):
+        frame = pd.DataFrame({
+            "ticker": ["a", "b", "c", "d", "e", "f"], "name": ["A", "B", "C", "D", "E", "F"],
+            "trade_date": ["2026-09-30"] * 5 + ["2026-09-29"],
+            "change_pct": [3., -1., 0., 90., float("nan"), 80.],
+            "stale": [False, False, False, True, False, False],
+        })
+        summary = summarize_watchlist(frame)
+        self.assertEqual(summary["count"], 3)
+        self.assertAlmostEqual(summary["average"], 2 / 3)
+        self.assertEqual((summary["up"], summary["down"], summary["flat"]), (1, 1, 1))
+        self.assertEqual(summary["leader"]["ticker"], "a")
+        self.assertEqual(summary["laggard"]["ticker"], "b")
+        frame["stale"] = True
+        self.assertIsNone(summarize_watchlist(frame)["average"])
+        self.assertEqual(summarize_watchlist(frame)["count"], 0)
+        self.assertEqual(summarize_watchlist(frame.iloc[:1].assign(stale=False))["average"], 3.)
+        self.assertIsNone(summarize_watchlist(frame.iloc[:0])["date"])
+
+    def test_favorites_keep_unknown_codes_and_reject_duplicates(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "watchlist.json"
+            items = add_watchlist_item([], "688525")
+            save_watchlist(items, path)
+            self.assertEqual(load_watchlist(path), [{"ticker": "688525.SH", "name": ""}])
+            with self.assertRaises(ValueError):
+                add_watchlist_item(items, "sh688525")
+            save_watchlist([], path)
+            self.assertEqual(load_watchlist(path), [])
+
+    def test_snapshot_cache_retains_unrequested_tickers_and_fills_names(self):
+        from market_snapshot import _save_snapshot_cache, _load_snapshot_cache, _merge_snapshot_rows
+        with tempfile.TemporaryDirectory() as folder, patch("market_snapshot.CACHE_PATH", Path(folder) / "quotes.csv"):
+            _save_snapshot_cache(pd.DataFrame([{"ticker": "000001.SZ", "price": 10}, {"ticker": "688525.SH", "price": 20}]))
+            _save_snapshot_cache(pd.DataFrame([{"ticker": "688525.SH", "price": 21}]))
+            cached = _load_snapshot_cache().set_index("ticker")
+            self.assertEqual(cached.loc["000001.SZ", "price"], 10)
+            self.assertEqual(cached.loc["688525.SH", "price"], 21)
+            frame = _merge_snapshot_rows([{"ticker": "688525.SH", "name": "", "industry": "未分类"}],
+                {"688525": {"provider_name": "佰维存储", "price": 21}}, {})
+            self.assertEqual(frame.iloc[0]["name"], "佰维存储")
+
+    def test_overview_route_and_round_trip_keep_stock_and_preferences(self):
+        from streamlit.testing.v1 import AppTest
+        from data_fetcher import DataFetchError
+        items = [{"ticker": "688525.SH", "name": "佰维存储"}, {"ticker": "000001.SZ", "name": "平安银行"}]
+        quotes = pd.DataFrame(items).assign(industry="未分类", price=[20., 10.], previous_close=[19., 11.],
+            change_pct=[5., -9.], amount=1e8, quote_time="2026-09-30 15:00:00", trade_date="2026-09-30", stale=False)
+        with patch("watchlist.load_watchlist", return_value=items) as favorites, patch("watchlist.load_watchlist_snapshot", return_value=quotes) as batch, \
+             patch("browser_state._storage", return_value=SimpleNamespace(loaded={})), \
+             patch("watchlist.is_a_share_trading_session", return_value=False) as trading, \
+             patch("services.market_data.load_data", side_effect=DataFetchError("unavailable", "模拟不可用")) as daily:
+            app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app.py"))
+            for key, value in {"_browser_state_ready": True, "market_navigation": "A股", "market_view_navigation": "我的自选",
+                "watchlist_search": "银行", "watchlist_sort": "涨幅优先", "display_start": date(2026, 1, 1), "show_bbi": True}.items():
+                app.session_state[key] = value
+            app.run(timeout=15)
+            self.assertFalse(app.exception)
+            self.assertEqual(app.metric[0].value, "2")
+            daily.assert_not_called()
+            batch.assert_called_once()
+            app.button(key="watch-open:000001.SZ").click().run(timeout=15)
+            self.assertFalse(app.exception)
+            self.assertEqual(app.sidebar.selectbox(key="a_share_watchlist_ticker").value, "000001.SZ")
+            self.assertEqual(daily.call_args.args[0], "000001.SZ")
+            next(button for button in app.button if button.label == "← 返回自选池总览").click().run(timeout=15)
+            self.assertFalse(app.exception)
+            self.assertEqual(app.text_input(key="watchlist_search").value, "银行")
+            self.assertEqual(app.selectbox(key="watchlist_sort").value, "涨幅优先")
+            self.assertEqual(app.session_state["display_start"], date(2026, 1, 1))
+            self.assertTrue(app.session_state["show_bbi"])
+            self.assertEqual(batch.call_count, 2)
+            trading.return_value = True
+            app.run(timeout=15)
+            self.assertEqual(batch.call_count, 3)
+            trading.return_value = False
+            from market_snapshot import MarketSnapshotError
+            batch.side_effect = MarketSnapshotError("offline")
+            app.button(key="watchlist_refresh").click().run(timeout=15)
+            self.assertFalse(app.exception)
+            self.assertEqual(app.metric[1].value, "—")
+            self.assertEqual(app.metric[3].value, "0 / 2")
+            self.assertTrue(app.warning)
+            favorites.return_value = []
+            app.run(timeout=15)
+            self.assertFalse(app.exception)
+            self.assertEqual(batch.call_count, 4)
+            batch.side_effect = None
+            with patch("watchlist.save_watchlist", side_effect=lambda values: setattr(favorites, "return_value", values)):
+                app.text_input(key="manual_watchlist_ticker").set_value("000001")
+                next(button for button in app.button if button.label == "加入自选股").click().run(timeout=15)
+                self.assertEqual(favorites.return_value[0]["ticker"], "000001.SZ")
+                self.assertEqual(app.session_state["watchlist_view"], "总览")
+                app.text_input(key="manual_watchlist_ticker").set_value("000001")
+                next(button for button in app.button if button.label == "加入自选股").click().run(timeout=15)
+                self.assertTrue(app.error)
+                self.assertEqual(len(favorites.return_value), 1)
+                app.button(key="watch-open:000001.SZ").click().run(timeout=15)
+                next(button for button in app.sidebar.button if button.label == "移出自选股").click().run(timeout=15)
+                self.assertFalse(app.exception)
+                self.assertEqual(favorites.return_value, [])
+                self.assertEqual(app.session_state["watchlist_view"], "总览")
 
 
 class NewListingTests(unittest.TestCase):

@@ -13,3 +13,6 @@ venv/
 data/cache/*.csv
 data/cache/*.json
 !data/cache/.gitkeep
+data/cache/ifind/
+.tmp/
+outputs/

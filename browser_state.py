@@ -11,12 +11,15 @@ CHOICES = {
     "page_navigation": ["行情分析", "市场总览", "指标说明", "新闻热点"],
     "market_navigation": ["美股", "A股", "韩股"],
     "market_view_navigation": ["个股分析", "我的自选", "股票池排行"],
+    "watchlist_view": ["总览", "详情"],
+    "watchlist_sort": ["加入顺序", "涨幅优先", "跌幅优先", "价格从高到低", "成交额从高到低"],
     "price_volume_metric": ["成交量", "成交额"],
     "market-overview-page-market": ["A股", "美股", "韩股 KOSPI"],
 }
 TEXT_KEYS = {
     "a_share_industry", "a_share_ticker", "a_share_watchlist_ticker",
     "kr_ticker", "us_ticker", "us_custom_ticker",
+    "watchlist_search",
 }
 DATE_KEYS = {"display_start", "display_end"}
 BOOL_KEYS = {"show_bbi", "show_boll"}

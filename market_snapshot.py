@@ -397,6 +397,10 @@ def _save_snapshot_cache(frame: pd.DataFrame) -> None:
     snapshot = _coerce_snapshot_frame(frame)
     cache_dir = CACHE_PATH.parent
     with _CACHE_LOCK:
+        previous = _load_snapshot_cache()
+        snapshot = pd.concat([previous, snapshot], ignore_index=True).drop_duplicates(
+            subset="ticker", keep="last"
+        )
         cache_dir.mkdir(parents=True, exist_ok=True)
         temp_path: Path | None = None
         try:
@@ -450,10 +454,14 @@ def _merge_snapshot_rows(
         code = ticker.split(".", maxsplit=1)[0]
         if code in live_by_code:
             quote = dict(live_by_code[code])
-            quote.pop("provider_name", None)
+            provider_name = quote.pop("provider_name", None)
+            if not universe_row["name"] and provider_name:
+                universe_row = {**universe_row, "name": str(provider_name)}
             stale = False
         elif ticker in cached_by_ticker:
             cached = cached_by_ticker[ticker]
+            if not universe_row["name"] and cached.get("name"):
+                universe_row = {**universe_row, "name": cached["name"]}
             quote = {column: cached.get(column) for column in SNAPSHOT_COLUMNS[3:-1]}
             stale = True
         else:

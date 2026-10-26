@@ -25,6 +25,7 @@ Stock Insight currently supports:
 - RSI and MACD technical indicator panels
 - A dedicated indicator explanation page
 - CSV export for loaded historical price data
+- A-share watchlist overview with equal-weight daily performance, breadth, sortable quotes, and round-trip stock analysis; quotes refresh every 30 seconds during weekday trading hours (holiday calendar is not included)
 
 ## Project Structure
 
@@ -125,6 +126,21 @@ The app can be deployed on Streamlit Community Cloud.
 5. Add `THS_ACCESS_TOKEN` in Streamlit secrets if your deployment needs it.
 
 Streamlit will provide a public `*.streamlit.app` URL after deployment.
+
+## Version branches
+
+Both editions are kept as branches in this repository and run from the same project directory:
+
+| Branch | Data source | Configuration |
+| --- | --- | --- |
+| `codex/ifind` | Official iFinD HTTP APIs | Valid iFinD credentials and data permissions required |
+| `codex/public-data` | Original Tonghuashun public pages, Yahoo Finance and public-provider requests | No iFinD credentials needed for normal public-data paths |
+
+Run `git switch codex/public-data` for the original public-data edition or `git switch codex/ifind` for the API edition, then run `start.bat` (http://localhost:8501). Stop any running Streamlit process before changing editions. `start_public.bat` and `start_ifind.bat` also switch to the corresponding branch before starting the app; Git refuses the switch if it would overwrite local edits.
+
+The public-data branch preserves the original implementation, including its optional iFinD path for Beijing Stock Exchange prices. Public sources remain subject to network availability and coverage. The iFinD branch does not fall back to public sources when credentials are missing.
+
+Ignored local credentials, caches and the Python environment remain on disk when switching branches. The editions share this directory's local watchlist and browser origin; keep that in mind when changing versions. The old archived public-data directory is no longer required by the launchers.
 
 ## Tonghuashun iFinD Configuration
 
