@@ -77,7 +77,7 @@ stock_insight/
 
 4. **Run the app**
 
-   On Windows, double-click `start.bat` (or run it in a terminal). It reuses the
+   On Windows, double-click `start_public.bat` for public data or `start_ifind.bat` for iFinD (or run either in a terminal). It reuses the
    project's `.venv`, creates it and installs dependencies on first run, then
    starts the app on port 8501 and opens the browser automatically.
 
@@ -137,7 +137,7 @@ Both editions are kept as branches in this repository and run from the same proj
 | `codex/ifind` | Official iFinD HTTP APIs | Valid iFinD credentials and data permissions required |
 | `codex/public-data` | Original Tonghuashun public pages, Yahoo Finance and public-provider requests | No iFinD credentials needed for normal public-data paths |
 
-Run `git switch codex/public-data` for the original public-data edition or `git switch codex/ifind` for the API edition, then run `start.bat` (http://localhost:8501). Stop any running Streamlit process before changing editions. `start_public.bat` and `start_ifind.bat` also switch to the corresponding branch before starting the app; Git refuses the switch if it would overwrite local edits.
+Run `start_public.bat` for the original public-data edition or `start_ifind.bat` for the iFinD API edition (http://localhost:8501). Each script switches to its corresponding branch, sets up the local Python environment if needed, and starts the app. Stop any running Streamlit process before changing editions. Git refuses the switch if it would overwrite local edits. Only these two launchers are needed.
 
 The public-data branch preserves the original implementation, including its optional iFinD path for Beijing Stock Exchange prices. Public sources remain subject to network availability and coverage. The iFinD branch does not fall back to public sources when credentials are missing.
 
