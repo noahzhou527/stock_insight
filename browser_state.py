@@ -22,7 +22,7 @@ TEXT_KEYS = {
     "watchlist_search",
 }
 DATE_KEYS = {"display_start", "display_end"}
-BOOL_KEYS = {"show_bbi", "show_boll"}
+BOOL_KEYS = {"show_bbi", "show_boll", "display_start_manual", "display_end_manual"}
 KEYS = set(CHOICES) | TEXT_KEYS | DATE_KEYS | BOOL_KEYS | {"ma_periods", "rsi_period", "a_share_live_names"}
 
 

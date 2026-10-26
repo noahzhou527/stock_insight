@@ -363,7 +363,7 @@ try:
                 st.caption(f"已切换为美元显示 · 参考汇率：1 美元 = {1 / krw_usd_rate:,.2f} 韩元")
 
     with st.container(key="data_load_success"):
-        st.success(f"成功加载 {ticker} 从 {start_date} 到 {end_date} 的数据")
+        st.success(f"成功加载 {ticker} 从 {start_date} 到 {end_date} 的数据 · 实际最新交易日 {df.index.max():%Y-%m-%d}")
     # 正常来源的出处并入「市场快照」标题行显示（见 render_snapshot_panel），
     # 这里只保留异常来源的横幅——缓存 / 演示数据是需要显眼警示的情况。
     if data_source == "同花顺本地缓存":

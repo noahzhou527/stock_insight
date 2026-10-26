@@ -15,6 +15,37 @@ from watchlist import summarize_watchlist, add_watchlist_item, load_watchlist, s
 
 
 class BrowserPreferencesTests(unittest.TestCase):
+    def test_date_defaults_reset_legacy_values_and_remember_manual_edits(self):
+        from datetime import datetime
+        from calendar import monthrange
+        from zoneinfo import ZoneInfo
+        from streamlit.testing.v1 import AppTest
+        today = datetime.now(ZoneInfo("Asia/Shanghai")).date()
+        year_ago = today.replace(year=today.year - 1,
+            day=min(today.day, monthrange(today.year - 1, today.month)[1]))
+        source = "from sidebar import render_sidebar\nrender_sidebar('US', {})"
+        app = AppTest.from_string(source)
+        app.session_state["display_start"] = date(2025, 9, 18)
+        app.session_state["display_end"] = date(2026, 9, 18)
+        app.run(timeout=15)
+        self.assertFalse(app.exception)
+        self.assertEqual(app.date_input(key="display_start").value, year_ago)
+        self.assertEqual(app.date_input(key="display_end").value, today)
+        app.date_input(key="display_end").set_value(date(2026, 9, 18)).run(timeout=15)
+        self.assertEqual(app.date_input(key="display_start").value, year_ago)
+        app.date_input(key="display_start").set_value(date(2025, 8, 1)).run(timeout=15)
+        saved = valid_preferences({"display_start": "2025-08-01", "display_end": "2026-09-18",
+            "display_start_manual": app.session_state["display_start_manual"],
+            "display_end_manual": app.session_state["display_end_manual"]})
+        reopened = AppTest.from_string(source)
+        for key, value in saved.items():
+            reopened.session_state[key] = value
+        reopened.run(timeout=15)
+        self.assertFalse(reopened.exception)
+        self.assertEqual(reopened.date_input(key="display_start").value, date(2025, 8, 1))
+        self.assertEqual(reopened.date_input(key="display_end").value, date(2026, 9, 18))
+        self.assertFalse(reopened.date_input(key="display_end").disabled)
+
     def test_restores_dates_and_ignores_invalid_or_unrelated_values(self):
         result = valid_preferences({
             "display_start": "2026-08-01", "display_end": "invalid",

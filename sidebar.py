@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
+from calendar import monthrange
+from zoneinfo import ZoneInfo
 
 import streamlit as st
 
@@ -21,6 +23,10 @@ class DashboardControls:
     show_bbi: bool
     show_boll: bool
     rsi_period: int
+
+
+def _remember_manual_date(key: str) -> None:
+    st.session_state[f"{key}_manual"] = True
 
 
 def render_sidebar(
@@ -71,11 +77,21 @@ def render_sidebar(
             st.sidebar.selectbox("选择股票", list(KR_TICKER_OPTIONS), key="kr_ticker")
         ]
 
+    today = datetime.now(ZoneInfo("Asia/Shanghai")).date()
+    year_ago = today.replace(
+        year=today.year - 1,
+        day=min(today.day, monthrange(today.year - 1, today.month)[1]),
+    )
+    for key, default in (("display_start", year_ago), ("display_end", today)):
+        if not st.session_state.get(f"{key}_manual", False):
+            st.session_state[key] = default
     first, second = st.sidebar.columns(2)
     with first:
-        start_date = st.date_input("开始日期", datetime.now() - timedelta(days=365), key="display_start")
+        start_date = st.date_input("开始日期", key="display_start",
+            on_change=_remember_manual_date, args=("display_start",))
     with second:
-        end_date = st.date_input("结束日期", datetime.now(), key="display_end")
+        end_date = st.date_input("结束日期", key="display_end",
+            on_change=_remember_manual_date, args=("display_end",))
 
     st.sidebar.markdown("---")
     st.sidebar.subheader("技术指标设置")
