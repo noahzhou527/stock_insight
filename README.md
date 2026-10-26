@@ -128,20 +128,20 @@ The app can be deployed on Streamlit Community Cloud.
 
 Streamlit will provide a public `*.streamlit.app` URL after deployment.
 
-## Two local versions
+## Version branches
 
-There are two separate source directories on the development machine. They are not two modes selected by adding or removing an iFinD token.
+Both editions are kept as branches in this repository and run from the same project directory:
 
-| Edition | Local source directory | Launcher (from this checkout) | Local URL | Data access |
-| --- | --- | --- | --- | --- |
-| iFinD | `D:\code\Repository_GitHub\stock_insight` | `start_ifind.bat` or `start.bat` | http://localhost:8501 | Official iFinD HTTP APIs; requires a valid Access Token or Refresh Token and the relevant account permissions |
-| Public data | `D:\code\Repository_GitHub\stock_insight_public_backup_20261010` | `start_public.bat` | http://localhost:8502 | Tonghuashun public pages, Yahoo Finance, and the original public-provider helpers; no iFinD token required for the public-data paths |
+| Branch | Data source | Configuration |
+| --- | --- | --- |
+| `codex/ifind` | Official iFinD HTTP APIs | Valid iFinD credentials and data permissions required |
+| `codex/public-data` | Original Tonghuashun public pages, Yahoo Finance and public-provider requests | No iFinD credentials needed for normal public-data paths |
 
-- **This checkout is the iFinD edition.** Removing its token does not enable public-data fallback. Missing credentials or permissions are reported as unavailable data.
-- **The public-data edition is a separate local backup.** Its directory must exist beside this checkout for `start_public.bat` to work. Cloning this repository alone does not create or download that backup.
-- The public launcher reuses this checkout's `.venv` Python environment. Run the normal setup first if the environment does not exist.
-- The editions have separate source, data/cache directories, and watchlists. Their different ports also separate browser preferences. Changes in one directory are not automatically synchronized to the other.
-- The original public-data backup preserves the news view, which is excluded from the iFinD edition. Public data remain subject to source availability, network conditions, and field coverage.
+Run `git switch codex/public-data` for the original public-data edition or `git switch codex/ifind` for the API edition, then run `start.bat` (http://localhost:8501). Stop any running Streamlit process before changing editions. `start_public.bat` and `start_ifind.bat` also switch to the corresponding branch before starting the app; Git refuses the switch if it would overwrite local edits.
+
+The public-data branch preserves the original implementation, including its optional iFinD path for Beijing Stock Exchange prices. Public sources remain subject to network availability and coverage. The iFinD branch does not fall back to public sources when credentials are missing.
+
+Ignored local credentials, caches and the Python environment remain on disk when switching branches. The editions share this directory's local watchlist and browser origin; keep that in mind when changing versions. The old archived public-data directory is no longer required by the launchers.
 
 ## Tonghuashun iFinD Configuration
 
