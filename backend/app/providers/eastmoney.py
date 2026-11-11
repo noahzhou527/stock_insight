@@ -21,6 +21,7 @@ from .http import HttpClient
 KLINE_URL = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
 TRENDS_URL = "https://push2.eastmoney.com/api/qt/stock/trends2/get"
 ULIST_URL = "https://push2.eastmoney.com/api/qt/ulist.np/get"
+QUOTE_URL = "https://push2.eastmoney.com/api/qt/stock/get"
 CLIST_URL = "https://push2.eastmoney.com/api/qt/clist/get"
 HEADERS = {"Referer": "https://quote.eastmoney.com/"}
 NAME = "东方财富"
@@ -216,3 +217,27 @@ class EastmoneyProvider(ProviderBase):
         up = sum(v > 0 for v in changes)
         down = sum(v < 0 for v in changes)
         return Breadth(up, down, len(changes) - up - down, len(changes), "东方财富全 A 股快照")
+
+    # ---------------------------------------------------------------- indices (by explicit secid)
+    def index_daily(self, index_secid: str, start: date, end: date) -> Bars:
+        payload = self._json(KLINE_URL, {
+            "secid": index_secid, "klt": "101", "fqt": "1", "beg": f"{start:%Y%m%d}", "end": f"{end:%Y%m%d}",
+            "lmt": "100000", "fields1": "f1,f2,f3,f4,f5,f6", "fields2": "f51,f52,f53,f54,f55,f56,f57,f58",
+        })
+        rows, name = parse_kline(payload)
+        return Bars(finalize_bars(rows, start, end), NAME, "CNY", name)
+
+    def index_intraday(self, index_secid: str) -> Intraday:
+        return parse_trends(self._json(TRENDS_URL, {
+            "secid": index_secid, "ndays": "1", "iscr": "0", "iscca": "0",
+            "fields1": "f1,f2,f3,f5,f6,f7,f8,f9,f10,f11,f12,f13,f14,f17",
+            "fields2": "f51,f52,f53,f54,f55,f56,f57,f58",
+        }))
+
+    def index_constituents(self, index_secid: str) -> dict | None:
+        """f113 上涨 / f114 下跌 / f115 平盘 constituent counts."""
+        data = (self._json(QUOTE_URL, {"secid": index_secid, "fields": "f113,f114,f115"}).get("data") or {})
+        values = {"up": _number(data.get("f113")), "down": _number(data.get("f114")), "flat": _number(data.get("f115"))}
+        if any(v is None for v in values.values()):
+            return None
+        return {k: int(v) for k, v in values.items()}

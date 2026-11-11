@@ -117,6 +117,7 @@ class DataFetchError(RuntimeError):
 
     def __init__(self, category: str, message: str, detail: str | Exception | None = None):
         super().__init__(message)
+        self.provider: str | None = None  # set by CompositeProvider
         self.category = category
         self.message = message
         self.detail = None if detail is None else (

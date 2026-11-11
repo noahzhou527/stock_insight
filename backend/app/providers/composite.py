@@ -55,17 +55,18 @@ class CompositeProvider:
         for position, provider in enumerate(chain):
             try:
                 value = invoke(provider)
-            except NotSupported as error:
-                errors.append(error)
-                continue
-            except DataFetchError as error:
+            except DataFetchError as error:  # includes NotSupported
+                error.provider = provider.name
                 errors.append(error)
                 continue
             return Routed(value, provider.name, position > 0, errors)
         real = [e for e in errors if not isinstance(e, NotSupported)] or errors
         first = real[0]
         detail = "; ".join(f"{e.category}: {e.message}" + (f" ({e.detail})" if e.detail else "") for e in errors)
-        raise DataFetchError(first.category, first.message if len(real) == 1 else f"{first.message}（备用数据源也不可用）", detail)
+        final = DataFetchError(first.category, first.message if len(real) == 1 else f"{first.message}（备用数据源也不可用）", detail)
+        final.provider = getattr(first, "provider", None)
+        final.attempts = errors
+        raise final
 
     # Convenience wrappers ------------------------------------------------
     def daily_bars(self, inst, start, end):

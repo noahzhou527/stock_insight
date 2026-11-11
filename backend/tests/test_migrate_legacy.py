@@ -50,7 +50,7 @@ def test_migrate_is_complete_and_idempotent(legacy_root, tmp_path):
     by_file = {f["file"]: f for f in report.files}
     assert by_file["300308_SZ.csv"]["db_rows"] == by_file["300308_SZ.csv"]["csv_rows"] == 3
     assert by_file["AAPL.csv"]["db_rows"] == 1
-    assert report.groups == 2 and report.members == 3 and report.watchlist_items == 1
+    assert report.groups == 4 and report.members == 5 and report.watchlist_items == 1
     with factory() as session:
         inst = Instrument("CN", "300308.SZ")
         meta = repo.get_meta(session, inst)
@@ -61,7 +61,7 @@ def test_migrate_is_complete_and_idempotent(legacy_root, tmp_path):
     with factory() as session:
         again = migrate(legacy_root, session, NOW)
         assert again.instruments == again.groups == again.members == again.watchlist_items == 0
-        assert session.scalar(select(func.count()).select_from(UniverseMember)) == 3
+        assert session.scalar(select(func.count()).select_from(UniverseMember)) == 5
         assert session.scalar(select(func.count()).select_from(WatchlistItem)) == 1
         assert repo.count_bars(session, Instrument("CN", "300308.SZ")) == 3
     assert (legacy_root / "data" / "cache" / "300308_SZ.csv").exists()  # read-only towards the cache

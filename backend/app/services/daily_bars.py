@@ -107,16 +107,17 @@ class DailyBarService:
     def _fetch(self, logs: list[dict], inst: Instrument, start: date, end: date) -> Routed[Bars]:
         started = time.perf_counter()
         base = {"resource": "daily_bars", "key": f"{inst.id}:{start}:{end}", "started_at": self.now().astimezone(timezone.utc).replace(tzinfo=None)}
+        def log_failures(errors):
+            for failed in errors:
+                logs.append({**base, "provider": getattr(failed, "provider", None) or "composite", "duration_ms": 0,
+                             "status": "error", "error_category": failed.category, "error_message": failed.message})
+
         try:
             routed = self.provider.daily_bars(inst, start, end)
         except DataFetchError as error:
-            logs.append({**base, "provider": "composite", "duration_ms": int((time.perf_counter() - started) * 1000),
-                         "status": "error", "error_category": error.category,
-                         "error_message": f"{error.message} {error.detail or ''}".strip()})
+            log_failures(getattr(error, "attempts", None) or [error])
             raise
-        for failed in routed.errors:
-            logs.append({**base, "provider": "composite", "duration_ms": 0, "status": "error",
-                         "error_category": failed.category, "error_message": failed.message})
+        log_failures(routed.errors)
         logs.append({**base, "provider": routed.provider, "duration_ms": int((time.perf_counter() - started) * 1000), "status": "ok"})
         return routed
 

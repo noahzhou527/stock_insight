@@ -119,14 +119,26 @@ def migrate(root: Path, session: Session, now: datetime | None = None) -> Report
                 session.add(UniverseMember(group_id=group.id, instrument_id=inst.id, sort_order=order))
                 report.members += 1
 
-    # 美股、韩股常用清单
+    # 美股、韩股常用清单 → 两个分组（侧栏按分组展示）
     options = literal_assignments(root / "app_config.py", {"US_TICKER_OPTIONS", "KR_TICKER_OPTIONS"})
-    for market_key, market in (("US_TICKER_OPTIONS", "US"), ("KR_TICKER_OPTIONS", "KR")):
-        for label, ticker in options.get(market_key, {}).items():
-            if ticker == "CUSTOM":
-                continue
+    for offset, (market_key, market, group_name) in enumerate((("US_TICKER_OPTIONS", "US", "美股常用"),
+                                                               ("KR_TICKER_OPTIONS", "KR", "韩股常用"))):
+        labels = [(label, ticker) for label, ticker in options.get(market_key, {}).items() if ticker != "CUSTOM"]
+        if not labels:
+            continue
+        group = session.scalar(select(UniverseGroup).where(UniverseGroup.name == group_name))
+        if group is None:
+            group = UniverseGroup(name=group_name, sort_order=1000 + offset)
+            session.add(group)
+            session.flush()
+            report.groups += 1
+        for order, (label, ticker) in enumerate(labels):
             match = LABEL.match(label)
-            add_instrument(Instrument(market, ticker), match.group(1) if match else label)
+            inst = Instrument(market, ticker)
+            add_instrument(inst, match.group(1) if match else label)
+            if session.get(UniverseMember, (group.id, inst.id)) is None:
+                session.add(UniverseMember(group_id=group.id, instrument_id=inst.id, sort_order=order))
+                report.members += 1
 
     # 自选
     watch_path = cache / "watchlist.json"
