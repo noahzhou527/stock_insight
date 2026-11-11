@@ -141,6 +141,8 @@ class MarketDataProvider(Protocol):
 3. **现有日线都是前复权价**：同花顺 URL 中的 `01`、东方财富的 `fqt=1`、yfinance `history()` 的默认 `auto_adjust=True` 都是复权口径。这直接影响增量缓存的设计，见 §5.2。P1 需用一只近期除权除息的股票核实这一点，并把结论写进代码注释。
 4. 同花顺日线的"当天那一根"在盘中和刚收盘时会滞后或不完整（实测收盘后 920190 当天收盘价与东方财富不一致）。所以当天的 K 线**一律由分时合成**，不信任日线接口的当天行，见 §5.2。
 5. 同花顺不复权接口（`/00/`）的当天行是残缺的，不要使用。
+6. **（P0 录样本时补测）Stooq 已不可直接取数**：`/q/d/l/` 返回 JS 工作量证明式的人机校验页，而不是 CSV。不绕过校验，Stooq 回退在 P1 视为不可用：美股日线回退链暂时只有 Yahoo，`providers/stooq.py` 保留接口但默认关闭，响应里出现校验页时归类为 `provider_blocked`。
+7. **（P0 补测）东方财富 push2 / push2his 在 HTTP/2 下会 TLS 握手失败**（curl 35），改用 HTTP/1.1 + `Connection: close` 可用（与旧 `market_snapshot.py` 的做法一致），`providers/http.py` 对东方财富统一这样设置。短时间连续请求约二十次后，本机 IP 被临时拒绝连接（curl 56，日线、分时都受影响），限速和退避必须真的生效。东方财富分时的金样本因此没录成，P1 补录（`python -m backend.scripts.record_fixtures em_trends_300308`）。
 
 **其它规则**
 - 每个源有独立的限速（默认最少间隔 0.3 秒）和超时（20 秒）；连续失败后按 30 秒 → 2 分钟 → 10 分钟退避，由 `fetch_log` 判断。

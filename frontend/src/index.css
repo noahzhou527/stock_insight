@@ -1,0 +1,24 @@
+:root {
+  color-scheme: dark light;
+  --bg-1: #070b14;
+  --text-1: #e6edf3;
+  --text-2: #8b98a5;
+  --accent: #22d3ee;
+  font-family: system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg-1: #f4f6f8;
+    --text-1: #111827;
+    --text-2: #4b5563;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--bg-1);
+  color: var(--text-1);
+}

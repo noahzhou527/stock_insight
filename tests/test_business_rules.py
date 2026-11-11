@@ -113,7 +113,7 @@ class WatchlistTests(unittest.TestCase):
              patch("services.market_data.load_data", side_effect=DataFetchError("unavailable", "模拟不可用")) as daily:
             app = AppTest.from_file(str(Path(__file__).resolve().parents[1] / "app.py"))
             for key, value in {"_browser_state_ready": True, "market_navigation": "A股", "market_view_navigation": "我的自选",
-                "watchlist_search": "银行", "watchlist_sort": "涨幅优先", "display_start": date(2026, 1, 1), "show_bbi": True}.items():
+                "watchlist_search": "银行", "watchlist_sort": "涨幅优先", "display_start": date(2026, 1, 1), "display_start_manual": True, "show_bbi": True}.items():
                 app.session_state[key] = value
             app.run(timeout=15)
             self.assertFalse(app.exception)

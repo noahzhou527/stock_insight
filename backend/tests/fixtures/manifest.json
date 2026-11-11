@@ -1,0 +1,243 @@
+{
+  "em_clist_breadth": {
+    "file": "eastmoney/clist_breadth_page1.json",
+    "url": "https://push2.eastmoney.com/api/qt/clist/get",
+    "params": {
+      "pn": 1,
+      "pz": 100,
+      "po": 1,
+      "np": 1,
+      "fltt": 2,
+      "invt": 2,
+      "fid": "f3",
+      "fs": "m:0+t:6,m:0+t:80",
+      "fields": "f12,f3"
+    },
+    "status": 200,
+    "content_type": "application/json; charset=UTF-8",
+    "bytes": 2838,
+    "recorded_at": "2026-11-11T14:39:31+00:00"
+  },
+  "em_kline_300308": {
+    "file": "eastmoney/kline_0.300308.json",
+    "url": "https://push2his.eastmoney.com/api/qt/stock/kline/get",
+    "params": {
+      "secid": "0.300308",
+      "klt": "101",
+      "fqt": "1",
+      "lmt": "120",
+      "end": "20500101",
+      "fields1": "f1,f2,f3,f4,f5,f6",
+      "fields2": "f51,f52,f53,f54,f55,f56,f57,f58"
+    },
+    "status": 200,
+    "content_type": "application/json; charset=UTF-8",
+    "bytes": 8559,
+    "recorded_at": "2026-11-11T14:39:23+00:00"
+  },
+  "em_kline_920190": {
+    "file": "eastmoney/kline_0.920190.json",
+    "url": "https://push2his.eastmoney.com/api/qt/stock/kline/get",
+    "params": {
+      "secid": "0.920190",
+      "klt": "101",
+      "fqt": "1",
+      "lmt": "120",
+      "end": "20500101",
+      "fields1": "f1,f2,f3,f4,f5,f6",
+      "fields2": "f51,f52,f53,f54,f55,f56,f57,f58"
+    },
+    "status": 200,
+    "content_type": "application/json; charset=UTF-8",
+    "bytes": 7485,
+    "recorded_at": "2026-11-11T14:39:24+00:00"
+  },
+  "em_kline_index_000001": {
+    "file": "eastmoney/kline_1.000001.json",
+    "url": "https://push2his.eastmoney.com/api/qt/stock/kline/get",
+    "params": {
+      "secid": "1.000001",
+      "klt": "101",
+      "fqt": "1",
+      "lmt": "120",
+      "end": "20500101",
+      "fields1": "f1,f2,f3,f4,f5,f6",
+      "fields2": "f51,f52,f53,f54,f55,f56,f57,f58"
+    },
+    "status": 200,
+    "content_type": "application/json; charset=UTF-8",
+    "bytes": 9371,
+    "recorded_at": "2026-11-11T14:39:24+00:00"
+  },
+  "em_ulist_snapshot": {
+    "file": "eastmoney/ulist_snapshot.json",
+    "url": "https://push2.eastmoney.com/api/qt/ulist.np/get",
+    "params": {
+      "fltt": "2",
+      "invt": "2",
+      "fields": "f12,f14,f2,f18,f3,f6,f20,f115,f124,f297",
+      "secids": "0.300308,1.600519,0.000001,0.920190,1.688525"
+    },
+    "status": 200,
+    "content_type": "application/json; charset=UTF-8",
+    "bytes": 878,
+    "recorded_at": "2026-11-11T14:39:30+00:00"
+  },
+  "ths_cash_300308": {
+    "file": "ths/cash_300308.json",
+    "url": "https://basic.10jqka.com.cn/api/stock/finance/300308_cash.json",
+    "params": null,
+    "status": 200,
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 441386,
+    "recorded_at": "2026-11-11T14:39:22+00:00"
+  },
+  "ths_daily_300308": {
+    "file": "ths/daily_300308_2026.js",
+    "url": "https://d.10jqka.com.cn/v6/line/hs_300308/01/2026.js",
+    "params": null,
+    "status": 200,
+    "content_type": "application/javascript",
+    "bytes": 17659,
+    "recorded_at": "2026-11-11T14:39:18+00:00"
+  },
+  "ths_daily_920190": {
+    "file": "ths/daily_920190_2026.js",
+    "url": "https://d.10jqka.com.cn/v6/line/hs_920190/01/2026.js",
+    "params": null,
+    "status": 200,
+    "content_type": "application/javascript",
+    "bytes": 13135,
+    "recorded_at": "2026-11-11T14:39:18+00:00"
+  },
+  "ths_f10_desktop_300308": {
+    "file": "ths/f10_desktop_300308.html",
+    "url": "https://basic.10jqka.com.cn/300308/",
+    "params": null,
+    "status": 200,
+    "content_type": "text/html",
+    "bytes": 210103,
+    "recorded_at": "2026-11-11T14:39:20+00:00"
+  },
+  "ths_f10_mobile_300308": {
+    "file": "ths/f10_mobile_company_300308.html",
+    "url": "https://basic.10jqka.com.cn/mobile/300308/company.html",
+    "params": null,
+    "status": 200,
+    "content_type": "text/html",
+    "bytes": 91686,
+    "recorded_at": "2026-11-11T14:39:20+00:00"
+  },
+  "ths_finance_300308": {
+    "file": "ths/finance_300308.html",
+    "url": "https://basic.10jqka.com.cn/300308/finance.html",
+    "params": null,
+    "status": 200,
+    "content_type": "text/html",
+    "bytes": 394326,
+    "recorded_at": "2026-11-11T14:39:21+00:00"
+  },
+  "ths_index_daily_1A0001": {
+    "file": "ths/index_daily_1A0001_2026.js",
+    "url": "https://d.10jqka.com.cn/v6/line/hs_1A0001/01/2026.js",
+    "params": null,
+    "status": 200,
+    "content_type": "application/javascript",
+    "bytes": 16446,
+    "recorded_at": "2026-11-11T14:39:19+00:00"
+  },
+  "ths_intraday_300308": {
+    "file": "ths/intraday_300308.js",
+    "url": "https://d.10jqka.com.cn/v6/time/hs_300308/last.js",
+    "params": null,
+    "status": 200,
+    "content_type": "application/javascript",
+    "bytes": 10061,
+    "recorded_at": "2026-11-11T14:39:19+00:00"
+  },
+  "ths_intraday_920190": {
+    "file": "ths/intraday_920190.js",
+    "url": "https://d.10jqka.com.cn/v6/time/hs_920190/last.js",
+    "params": null,
+    "status": 200,
+    "content_type": "application/javascript",
+    "bytes": 7593,
+    "recorded_at": "2026-11-11T14:39:56+00:00"
+  },
+  "yahoo_daily_005930.KS": {
+    "file": "yahoo/chart_daily_005930.KS.json",
+    "url": "https://query1.finance.yahoo.com/v8/finance/chart/005930.KS",
+    "params": {
+      "range": "6mo",
+      "interval": "1d"
+    },
+    "status": 200,
+    "content_type": "application/json;charset=utf-8",
+    "bytes": 9650,
+    "recorded_at": "2026-11-11T14:39:33+00:00"
+  },
+  "yahoo_daily_AAPL": {
+    "file": "yahoo/chart_daily_AAPL.json",
+    "url": "https://query1.finance.yahoo.com/v8/finance/chart/AAPL",
+    "params": {
+      "range": "6mo",
+      "interval": "1d"
+    },
+    "status": 200,
+    "content_type": "application/json;charset=utf-8",
+    "bytes": 14986,
+    "recorded_at": "2026-11-11T14:39:32+00:00"
+  },
+  "yahoo_fundamentals_AAPL": {
+    "file": "yahoo/fundamentals_AAPL.json",
+    "url": "https://query2.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/AAPL",
+    "params": {
+      "symbol": "AAPL",
+      "type": "annualTotalRevenue,annualGrossProfit,annualOperatingIncome,annualNetIncome,annualBasicEPS,quarterlyTotalRevenue,quarterlyGrossProfit,quarterlyOperatingIncome,quarterlyNetIncome,quarterlyBasicEPS",
+      "period1": "1577836800",
+      "period2": "1924992000"
+    },
+    "status": 200,
+    "content_type": "application/json;charset=utf-8",
+    "bytes": 10088,
+    "recorded_at": "2026-11-11T14:39:37+00:00"
+  },
+  "yahoo_fx_KRW": {
+    "file": "yahoo/chart_KRW=X.json",
+    "url": "https://query1.finance.yahoo.com/v8/finance/chart/KRW=X",
+    "params": {
+      "range": "5d",
+      "interval": "1d"
+    },
+    "status": 200,
+    "content_type": "application/json;charset=utf-8",
+    "bytes": 1687,
+    "recorded_at": "2026-11-11T14:39:34+00:00"
+  },
+  "yahoo_intraday_005930.KS": {
+    "file": "yahoo/chart_5m_005930.KS.json",
+    "url": "https://query1.finance.yahoo.com/v8/finance/chart/005930.KS",
+    "params": {
+      "range": "5d",
+      "interval": "5m",
+      "includePrePost": "false"
+    },
+    "status": 200,
+    "content_type": "application/json;charset=utf-8",
+    "bytes": 20955,
+    "recorded_at": "2026-11-11T14:40:57+00:00"
+  },
+  "yahoo_intraday_AAPL": {
+    "file": "yahoo/chart_5m_AAPL.json",
+    "url": "https://query1.finance.yahoo.com/v8/finance/chart/AAPL",
+    "params": {
+      "range": "5d",
+      "interval": "5m",
+      "includePrePost": "false"
+    },
+    "status": 200,
+    "content_type": "application/json;charset=utf-8",
+    "bytes": 29290,
+    "recorded_at": "2026-11-11T14:40:57+00:00"
+  }
+}

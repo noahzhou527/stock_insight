@@ -1,1 +1,3 @@
 *.bat text eol=crlf
+# 金样本是上游原始响应，必须逐字节保留
+backend/tests/fixtures/** -text -diff
