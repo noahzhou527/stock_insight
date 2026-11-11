@@ -118,6 +118,13 @@ def test_us_symbol_with_special_characters(env):
     client, *_ = env
     body = ok(client.get(f"/api/instruments/US/{quote('BRK-B')}/bars"))
     assert body["instrument"]["id"] == "US:BRK-B" and all(b["amount_estimated"] for b in body["bars"])
+    assert ok(client.get(f"/api/instruments/US/{quote('BRK-B')}"))["name"] == "Fake Corp"  # empty name gets filled
+
+
+def test_provider_names_do_not_replace_curated_us_kr_names(env):
+    client, *_ = env
+    ok(client.get("/api/instruments/US/AAPL/bars"))  # fake Yahoo answers "Fake Corp"
+    assert ok(client.get("/api/instruments/US/AAPL"))["name"] == "Apple"
 
 
 def test_intraday_provisional_overlay_during_session(env):

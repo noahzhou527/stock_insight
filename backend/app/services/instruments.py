@@ -62,9 +62,15 @@ class InstrumentService:
                     "history_start": meta.covered_start if meta else None}
 
     def update_name(self, inst: Instrument, name: str | None) -> None:
+        """Record the provider's name. A 股 names (同花顺 / 东方财富) are Chinese and authoritative;
+        for 美股 / 韩股 the provider returns English names, so they only fill an empty name and never
+        replace a curated Chinese one (e.g. 三星电子)."""
         if not name:
             return
         with self.session_factory() as session:
+            row = session.get(InstrumentRow, inst.id)
+            if row is not None and row.name and inst.market != "CN":
+                return
             repo.ensure_instrument(session, inst, name)
             session.commit()
 

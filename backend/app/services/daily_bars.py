@@ -201,7 +201,7 @@ class DailyBarService:
                     errors.append(error)
                     calls = []
                 name = next((c.value.name for c in calls if c.value.name), None)
-                repo.ensure_instrument(session, inst, name)
+                repo.ensure_instrument(session, inst)  # naming rules live in InstrumentService.update_name
                 for entry in logs:
                     fetch_log.append(session, **entry)
                 session.commit()

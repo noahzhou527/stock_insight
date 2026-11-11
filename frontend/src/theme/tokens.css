@@ -1,0 +1,64 @@
+/*
+ * Design tokens (docs/plan-b-draft.md §6.5). Dark and light only swap values.
+ * Up/down colours follow the instrument's market: A 股 / 韩股 红涨绿跌, 美股 绿涨红跌 —
+ * set data-market on any ancestor; it inherits.
+ */
+:root,
+[data-theme='dark'] {
+  --bg-app: #070b14;
+  --bg-panel: #0c1220;
+  --bg-raised: #141c2d;
+  --text-1: #e6edf6;
+  --text-2: #9aa7b8;
+  --text-3: #627185;
+  --line: #1a2335;
+  --line-strong: #2a3650;
+  --accent: #22d3ee;
+  --accent-weak: rgb(34 211 238 / 0.12);
+  --warn: #f5a524;
+  --warn-weak: rgb(245 165 36 / 0.12);
+  --error: #f04452;
+  --error-weak: rgb(240 68 82 / 0.12);
+  --red: #e53935;
+  --green: #1e9d55;
+  --flat: #8b98a9;
+  --chart-grid: #121a2a;
+  --chart-crosshair: #4b5a72;
+  --shadow: 0 8px 28px rgb(0 0 0 / 0.45);
+}
+
+[data-theme='light'] {
+  --bg-app: #f4f6f8;
+  --bg-panel: #ffffff;
+  --bg-raised: #eef1f5;
+  --text-1: #0f172a;
+  --text-2: #4a5768;
+  --text-3: #8592a4;
+  --line: #e3e8ee;
+  --line-strong: #cdd5df;
+  --accent: #0e9fbd; /* #22d3ee 在浅底上对比不足，取同色相深一档 */
+  --accent-weak: rgb(14 159 189 / 0.1);
+  --warn: #c77700;
+  --warn-weak: rgb(199 119 0 / 0.1);
+  --error: #d92d3a;
+  --error-weak: rgb(217 45 58 / 0.08);
+  --red: #e53935;
+  --green: #1e9d55;
+  --flat: #7b8796;
+  --chart-grid: #eef1f5;
+  --chart-crosshair: #9aa6b6;
+  --shadow: 0 8px 28px rgb(15 23 42 / 0.12);
+}
+
+/* 市场惯例：默认（A 股、韩股）红涨绿跌 */
+:root,
+[data-market='CN'],
+[data-market='KR'] {
+  --up: var(--red);
+  --down: var(--green);
+}
+
+[data-market='US'] {
+  --up: var(--green);
+  --down: var(--red);
+}

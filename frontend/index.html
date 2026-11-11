@@ -5,6 +5,18 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Stock Insight</title>
+    <script>
+      // 首屏前确定主题，避免闪烁（§6.5）。偏好：system / dark / light，存 localStorage。
+      ;(function () {
+        var pref = 'system'
+        try {
+          pref = localStorage.getItem('si-theme') || 'system'
+        } catch (e) {}
+        var dark = pref === 'dark' || (pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light'
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>
