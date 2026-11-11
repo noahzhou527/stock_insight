@@ -95,6 +95,34 @@ export function useIntraday(market: Market, symbol: string, currency?: string, e
   })
 }
 
+export function useSignals(market: Market, symbol: string, rsi: number) {
+  const poll = usePoll(market)
+  return useQuery({
+    queryKey: ['signals', market, symbol, rsi],
+    queryFn: ({ signal }) => api.get<Schemas['SignalsResponse']>(instrumentPath(market, symbol, '/signals'), { rsi }, signal),
+    placeholderData: keepPreviousData,
+    refetchInterval: poll,
+    staleTime: 20_000,
+  })
+}
+
+/** 财报与同业对比一天变不了几次：不轮询，10 分钟内不重取。 */
+export function useFinancials(market: Market, symbol: string, currency?: string) {
+  return useQuery({
+    queryKey: ['financials', market, symbol, currency],
+    queryFn: ({ signal }) => api.get<Schemas['FinancialsResponse']>(instrumentPath(market, symbol, '/financials'), { currency }, signal),
+    staleTime: 10 * 60_000,
+  })
+}
+
+export function usePeers(market: Market, symbol: string) {
+  return useQuery({
+    queryKey: ['peers', market, symbol],
+    queryFn: ({ signal }) => api.get<Schemas['PeersResponse']>(instrumentPath(market, symbol, '/peers'), undefined, signal),
+    staleTime: 10 * 60_000,
+  })
+}
+
 export function useHealth() {
   return useQuery({
     queryKey: ['health'],

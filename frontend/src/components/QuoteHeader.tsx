@@ -10,12 +10,15 @@ import {
   formatPrice,
   formatRatio,
   formatSigned,
+  formatTime,
   formatVolume,
   isNum,
   type Market,
 } from '@/lib/format'
 import { cn } from '@/lib/utils'
+import type { IndicatorKey } from '@/lib/indicatorHelp'
 import { DataStatusBadge } from './DataStatusBadge'
+import { InfoTip } from './InfoTip'
 import { ChangeText } from './states'
 import { Button, Segmented, Skeleton, Tip } from './ui'
 
@@ -27,12 +30,14 @@ export function QuoteHeader({
   snapshot,
   currency,
   onCurrency,
+  failed = false,
 }: {
   market: Market
   symbol: string
   snapshot: Schemas['SnapshotResponse'] | undefined
   currency: string
   onCurrency: (c: string) => void
+  failed?: boolean
 }) {
   const m = snapshot?.metrics
   const info = snapshot?.instrument
@@ -41,7 +46,7 @@ export function QuoteHeader({
     <section className="flex flex-wrap items-end gap-x-6 gap-y-2 px-4 pt-3 pb-2" aria-label="报价">
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <h1 className="truncate text-[17px] font-semibold text-fg">{info?.name ?? (snapshot ? symbol : <Skeleton className="h-5 w-24" />)}</h1>
+          <h1 className="truncate text-[17px] font-semibold text-fg">{info?.name ?? (snapshot || failed ? symbol : <Skeleton className="h-5 w-24" />)}</h1>
           <span className="num text-[13px] text-muted">{symbol}</span>
           <span className="rounded border border-line px-1 text-[10px] leading-4 text-subtle">{MARKET_LABEL[market]}</span>
           {info?.groups.slice(0, 2).map((g) => (
@@ -67,6 +72,8 @@ export function QuoteHeader({
               )}
               <span className="text-[11px] text-subtle">{m.price_from_intraday ? '分时最新价' : '最近收盘价'}</span>
             </>
+          ) : failed ? (
+            <span className="text-[13px] text-muted">暂无报价</span>
           ) : (
             <Skeleton className="h-8 w-56" />
           )}
@@ -125,10 +132,13 @@ function WatchButton({ market, symbol, inWatchlist }: { market: Market; symbol: 
   )
 }
 
-function Cell({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
+function Cell({ label, children, hint, info }: { label: string; children: React.ReactNode; hint?: string; info?: IndicatorKey }) {
   const content = (
-    <div className="flex shrink-0 flex-col gap-0.5 px-3 first:pl-4">
-      <span className="text-[11px] whitespace-nowrap text-subtle">{label}</span>
+    <div className="flex shrink-0 flex-col gap-0.5 px-3 first:pl-4" role="listitem">
+      <span className="flex items-center gap-0.5 text-[11px] whitespace-nowrap text-subtle">
+        {label}
+        {info && <InfoTip topic={info} />}
+      </span>
       <span className="num text-[13px] whitespace-nowrap text-fg">{children}</span>
     </div>
   )
@@ -148,6 +158,8 @@ export function AttributeBar({ snapshot, market, currency }: { snapshot: Schemas
   const m = snapshot.metrics
   const v = snapshot.valuation
   const lacking = '数据不足'
+  const valuationFetched = snapshot.valuation_meta?.fetched_at as string | undefined
+  const valuationHint = v ? `估值来源：${v.source}${valuationFetched ? ` · 取数 ${formatTime(valuationFetched + 'Z', true)}` : ''}` : (snapshot.valuation_meta?.note as string | undefined)
   const pe = (value: number | null | undefined) => (isNum(value) ? value.toFixed(1) : market === 'CN' && v ? '亏损/不适用' : DASH)
   const price = (value: number | null | undefined) => formatPrice(value, currency)
   return (
@@ -155,7 +167,7 @@ export function AttributeBar({ snapshot, market, currency }: { snapshot: Schemas
       <Cell label="区间最高 / 最低">
         {price(m.range_high)} <span className="text-subtle">/</span> {price(m.range_low)}
       </Cell>
-      <Cell label="52周最高 / 最低">
+      <Cell label="52周最高 / 最低" info="week52">
         {price(m.high_52w)} <span className="text-subtle">/</span> {price(m.low_52w)}
       </Cell>
       <Cell label="区间均量">{formatVolume(m.avg_volume, market)}</Cell>
@@ -163,11 +175,11 @@ export function AttributeBar({ snapshot, market, currency }: { snapshot: Schemas
         {formatMoneyShort(m.max_amount, currency)}
         {m.max_amount_date && <span className="ml-1 text-[11px] text-subtle">{m.max_amount_date.slice(5)}</span>}
       </Cell>
-      <Cell label="年化波动率">{isNum(m.volatility) ? formatRatio(m.volatility, 1, '%') : lacking}</Cell>
+      <Cell label="年化波动率" info="volatility">{isNum(m.volatility) ? formatRatio(m.volatility, 1, '%') : lacking}</Cell>
       <Cell label="总市值">{formatMoneyShort(v?.market_cap, currency)}</Cell>
       {market === 'CN' && (
         <>
-          <Cell label="PE TTM / 静 / 动" hint={v?.source}>
+          <Cell label="PE TTM / 静 / 动" info="pe" hint={valuationHint}>
             {pe(v?.pe_ttm)} <span className="text-subtle">/</span> {pe(v?.pe_static)} <span className="text-subtle">/</span> {pe(v?.pe_dynamic)}
           </Cell>
           <Cell label="TTM 净利润">{formatMoneyShort(v?.ttm_net_profit, currency)}</Cell>

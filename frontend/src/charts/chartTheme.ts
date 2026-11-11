@@ -18,6 +18,11 @@ export interface ChartColors {
 
 export const MA_COLORS = ['#f5a524', '#38bdf8', '#c084fc', '#f472b6', '#34d399', '#fb923c', '#a3e635']
 
+export const BBI_COLOR = '#e879f9'
+export const SIGNAL_COLOR = '#f5a524'
+export const REVENUE_COLOR = '#22d3ee'
+export const PROFIT_COLOR = '#8b5cf6'
+
 export function readColors(element: Element): ChartColors {
   const style = getComputedStyle(element)
   const v = (name: string) => style.getPropertyValue(name).trim()

@@ -1,6 +1,6 @@
 /**
  * Intraday chart: price + average price, previous-close line, price axis (right) and change-% axis (left),
- * volume pane. Validates the P3 questions for lightweight-charts:
+ * volume / amount pane. Validates the P3 questions for lightweight-charts:
  * - dual axis: a transparent series of % change on the left scale. Both scales get the same symmetric
  *   range around 昨收 (price ±d ↔ ±d/昨收 %), so they stay aligned and the % ticks land on round values.
  * - 午休: the time scale is index-based; the full session is laid out with whitespace points, so 11:30→13:00
@@ -20,7 +20,7 @@ import {
 } from 'lightweight-charts'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Schemas } from '@/api/client'
-import { formatPct, formatPrice, formatVolume, isNum, type Market } from '@/lib/format'
+import { formatAmount, formatPct, formatPrice, formatVolume, isNum, type Market } from '@/lib/format'
 import { useTheme } from '@/theme/theme'
 import { alpha, axisVolume, baseOptions, readColors } from './chartTheme'
 
@@ -34,6 +34,7 @@ interface Props {
   market: Market
   currency: string
   height: number
+  sub?: 'volume' | 'amount'
 }
 
 /** Market-local wall time encoded as a UTC timestamp so the axis shows local HH:MM. */
@@ -59,7 +60,7 @@ const hhmm = (t: number) => {
   return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
 }
 
-export function IntradayChart({ points, preClose, tradeDate, sessions, market, currency, height }: Props) {
+export function IntradayChart({ points, preClose, tradeDate, sessions, market, currency, height, sub = 'volume' }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const seriesRef = useRef<{ price?: ISeriesApi<'Line'>; avg?: ISeriesApi<'Line'>; pct?: ISeriesApi<'Line'>; vol?: ISeriesApi<'Histogram'> }>({})
@@ -160,11 +161,11 @@ export function IntradayChart({ points, preClose, tradeDate, sessions, market, c
         if (!p) return { time: t }
         const color = p.price! >= prev ? colors.up : colors.down
         prev = p.price!
-        return { time: t, value: p.volume ?? 0, color: alpha(color, 0.75) }
+        return { time: t, value: (sub === 'amount' ? p.amount : p.volume) ?? 0, color: alpha(color, 0.75) }
       }),
     )
     chartRef.current.timeScale().fitContent()
-  }, [points, preClose, tradeDate, sessions, market, theme, currency])
+  }, [points, preClose, tradeDate, sessions, market, theme, currency, sub])
 
   const shown = hover ?? points[points.length - 1]
   return (
@@ -183,7 +184,9 @@ export function IntradayChart({ points, preClose, tradeDate, sessions, market, c
           <span className="num" style={{ color: 'var(--warn)' }}>
             均 {formatPrice(shown.avg_price, currency)}
           </span>
-          <span className="num text-subtle">量 {formatVolume(shown.volume, market)}</span>
+          <span className="num text-subtle">
+            {sub === 'amount' ? `额 ${formatAmount(shown.amount, market, currency)}` : `量 ${formatVolume(shown.volume, market)}`}
+          </span>
         </div>
       )}
     </div>

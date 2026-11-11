@@ -30,6 +30,9 @@ export function ErrorState({ error, title, onRetry, className }: { error: unknow
       <AlertTriangle className="h-5 w-5 text-warn" aria-hidden />
       <div className="text-[13px] text-fg">{title ?? '数据加载失败'}</div>
       <div className="max-w-md text-[12px] text-muted">{info.message}</div>
+      <div className="text-[11px] text-subtle">
+        错误类别：<span className="font-mono">{info.category}</span>
+      </div>
       <div className="flex items-center gap-2">
         {onRetry && (
           <Button size="sm" onClick={onRetry}>

@@ -11,17 +11,33 @@ export interface StockSearch {
   start?: string
   end?: string
   ma: string // "5,10,20" — kept as plain text so the URL stays readable
-  sub: 'volume' | 'amount'
+  bbi: boolean
+  boll: boolean
+  rsi: number // RSI 周期 7–21
+  sub: SubKey
   chart: 'kline' | 'intraday'
   cur: 'KRW' | 'USD'
+  tab: TabKey
 }
+
+export const SUBS = ['volume', 'amount', 'rsi', 'macd'] as const
+export type SubKey = (typeof SUBS)[number]
+export const TABS = ['signals', 'financials', 'peers', 'data'] as const
+export type TabKey = (typeof TABS)[number]
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
 
-export const STOCK_SEARCH_DEFAULTS = { range: '1y', ma: '5,10,20', sub: 'volume', chart: 'kline', cur: 'KRW' } as const
+export const STOCK_SEARCH_DEFAULTS = { range: '1y', ma: '5,10,20', bbi: false, boll: false, rsi: 14, sub: 'volume', chart: 'kline', cur: 'KRW', tab: 'signals' } as const
 
 export function parseMa(value: string): number[] {
   return [...new Set(value.split(',').map(Number).filter((v) => Number.isInteger(v) && v >= 2 && v <= 250))].sort((a, b) => a - b)
+}
+
+const flag = (value: unknown) => value === true || value === 'true' || value === 1 || value === '1'
+
+export function rsiPeriod(value: unknown): number {
+  const n = Number(value)
+  return Number.isInteger(n) && n >= 7 && n <= 21 ? n : 14
 }
 
 /** Lenient: unknown or malformed values fall back to defaults instead of erroring. */
@@ -31,9 +47,13 @@ export function validateStockSearch(raw: Record<string, unknown>): StockSearch {
     start: typeof raw.start === 'string' && DATE.test(raw.start) ? raw.start : undefined,
     end: typeof raw.end === 'string' && DATE.test(raw.end) ? raw.end : undefined,
     ma: raw.ma === undefined ? '5,10,20' : parseMa(String(raw.ma)).join(','),
-    sub: raw.sub === 'amount' ? 'amount' : 'volume',
+    bbi: flag(raw.bbi),
+    boll: flag(raw.boll),
+    rsi: rsiPeriod(raw.rsi),
+    sub: SUBS.includes(raw.sub as SubKey) ? (raw.sub as SubKey) : 'volume',
     chart: raw.chart === 'intraday' ? 'intraday' : 'kline',
     cur: raw.cur === 'USD' ? 'USD' : 'KRW',
+    tab: TABS.includes(raw.tab as TabKey) ? (raw.tab as TabKey) : 'signals',
   }
 }
 

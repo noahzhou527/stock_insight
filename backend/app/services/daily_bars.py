@@ -28,8 +28,12 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Callable
 
 import pandas as pd
+from sqlalchemy import delete
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
+from ..db.models import BarsMeta
+from ..db.models import Instrument as InstrumentRow
 from ..domain import sessions
 from ..providers.base import BAR_COLUMNS, Bars, DataFetchError, Instrument, Intraday
 from ..providers.composite import CompositeProvider, Routed
@@ -184,6 +188,19 @@ class DailyBarService:
         return calls
 
     # ------------------------------------------------------------------ public
+    def _forget_unknown(self, inst: Instrument) -> None:
+        """Drop the auto-created row of an instrument that has no data, no name and no references."""
+        with self.session_factory() as session:
+            row = session.get(InstrumentRow, inst.id)
+            if row is None or row.name:
+                return
+            try:
+                session.execute(delete(BarsMeta).where(BarsMeta.instrument_id == inst.id))
+                session.delete(row)
+                session.commit()
+            except IntegrityError:  # in a stock pool / watchlist / has financial reports: keep it
+                session.rollback()
+
     def get(self, inst: Instrument, start: date, end: date, *, with_provisional: bool = True,
             intraday: Callable[[Instrument], Routed[Intraday]] | None = None) -> BarsResult:
         if end < start:
@@ -208,6 +225,7 @@ class DailyBarService:
                 frame = repo.load_bars(session, inst, start, end)
                 meta_row = repo.get_meta(session, inst)
                 fetched_at = meta_row.last_checked_at if meta_row else None
+                has_history = not frame.empty or repo.count_bars(session, inst) > 0
 
         frame = frame.copy()
         frame["provisional"] = False
@@ -233,6 +251,11 @@ class DailyBarService:
 
         if frame.empty and errors:
             raise errors[0]
+        if frame.empty and not has_history:
+            # The source answered without error but has nothing at all (typically a code that does not exist).
+            # Say so instead of returning an empty 200, and do not keep a nameless instrument around.
+            self._forget_unknown(inst)
+            raise DataFetchError("ticker_or_data_unavailable", f"没有找到 {inst.symbol} 的行情数据，请检查代码是否正确。")
 
         fallback = next((c for c in calls if c.fallback), None)
         if errors:

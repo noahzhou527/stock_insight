@@ -7,6 +7,7 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import pytest
 
+from backend.app.db.models import Instrument as InstrumentRow
 from backend.app.db.session import make_engine, make_session_factory, upgrade
 from backend.app.providers.base import Bars, DataFetchError, Instrument, Intraday, ProviderBase, finalize_bars
 from backend.app.providers.composite import CompositeProvider, Routed
@@ -130,6 +131,27 @@ def test_unlisted_range_is_not_requested_again(env):
     get(service, date(2024, 1, 1), date(2026, 11, 11))
     get(service, date(2025, 1, 1), date(2026, 11, 11))
     assert len(fake.calls) == 1
+
+
+def test_code_with_no_data_at_all_is_reported_as_not_found(env):
+    """A source that answers without error but has nothing (a code that does not exist) must not look like an
+    empty stock, and must not leave a nameless instrument behind for the search to find."""
+    service, fake, clock, factory = env
+    fake.listed = date(2099, 1, 1)
+    with pytest.raises(DataFetchError) as caught:
+        get(service, date(2025, 1, 1), date(2026, 11, 11))
+    assert caught.value.category == "ticker_or_data_unavailable"
+    with factory() as session:
+        assert repo.get_meta(session, INST) is None
+        assert session.get(InstrumentRow, INST.id) is None
+
+
+def test_empty_range_of_a_real_stock_is_still_an_empty_result(env):
+    service, fake, clock, factory = env
+    fake.listed = date(2026, 6, 1)
+    get(service, date(2026, 1, 1), date(2026, 11, 11))
+    result = get(service, date(2026, 1, 1), date(2026, 3, 1))
+    assert result.frame.empty
 
 
 def test_intraday_request_never_stores_today(env):
