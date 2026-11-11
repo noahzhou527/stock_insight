@@ -76,7 +76,7 @@ stock_insight/
 
 4. **Run the app**
 
-   On Windows, double-click `start_public.bat` for public data or `start_ifind.bat` for iFinD (or run either in a terminal). It reuses the
+   On Windows, double-click `start_public.bat` (or run it in a terminal). It reuses the
    project's `.venv`, creates it and installs dependencies on first run, then
    starts the app on port 8501 and opens the browser automatically.
 
@@ -127,20 +127,15 @@ The app can be deployed on Streamlit Community Cloud.
 
 Streamlit will provide a public `*.streamlit.app` URL after deployment.
 
-## Version branches
+## Branches
 
-Both editions are kept as branches in this repository and run from the same project directory:
+| Branch | Purpose |
+| --- | --- |
+| `main` | Current public-data edition (Tonghuashun public pages, Eastmoney, Yahoo Finance, Stooq). No paid API required. |
+| `public-data` | Same line as `main`; kept under its own name for continuity. |
+| `archive/ifind` | Archived iFinD API edition (also tagged `ifind-archive-2026-11-11`). Not maintained: the iFinD API was dropped as too costly. |
 
-| Branch | Data source | Configuration |
-| --- | --- | --- |
-| `codex/ifind` | Official iFinD HTTP APIs | Valid iFinD credentials and data permissions required |
-| `codex/public-data` | Original Tonghuashun public pages, Yahoo Finance and public-provider requests | No iFinD credentials needed for normal public-data paths |
-
-Run `start_public.bat` for the original public-data edition or `start_ifind.bat` for the iFinD API edition (http://localhost:8501). Each script switches to its corresponding branch, sets up the local Python environment if needed, and starts the app. Stop any running Streamlit process before changing editions. Git refuses the switch if it would overwrite local edits. Only these two launchers are needed.
-
-The public-data branch preserves the original implementation, including its optional iFinD path for Beijing Stock Exchange prices. Public sources remain subject to network availability and coverage. The iFinD branch does not fall back to public sources when credentials are missing.
-
-Ignored local credentials, caches and the Python environment remain on disk when switching branches. The editions share this directory's local watchlist and browser origin; keep that in mind when changing versions. The old archived public-data directory is no longer required by the launchers.
+Run `start_public.bat` (http://localhost:8501). It no longer switches Git branches; it sets up the local Python environment if needed and starts the app from the current checkout.
 
 ## Tonghuashun iFinD Configuration
 
