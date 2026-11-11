@@ -16,3 +16,9 @@ data/cache/*.json
 data/cache/ifind/
 .tmp/
 outputs/
+
+# SQLite database (P1) and all legacy cache content incl. subdirectories (B6)
+data/*.db
+data/*.db-*
+data/cache/**
+!data/cache/.gitkeep

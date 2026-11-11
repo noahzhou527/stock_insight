@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     demo_mode: bool = False
     request_timeout_s: float = 20.0
     min_request_interval_s: float = 0.3
+    # Provider keys to skip (ths / eastmoney / yahoo / stooq), e.g. STOCK_INSIGHT_DISABLED_PROVIDERS='["ths"]'
+    disabled_providers: list[str] = []
+    # Stooq now serves a bot-verification page instead of CSV (docs/plan-b-draft.md §4.1 item 6).
+    stooq_enabled: bool = False
 
 
 @lru_cache
