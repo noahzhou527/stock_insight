@@ -1,25 +1,32 @@
-/** Small shared UI state: last visited stock (for / and the 个股 tab) and sidebar visibility. */
+/** Last visited stock / page and sidebar visibility, persisted through backend prefs (§6.6). */
 import { create } from 'zustand'
+import { getPrefs, updatePrefs } from './prefs'
 
-const LAST_STOCK_KEY = 'si-last-stock'
+const DEFAULT_STOCK = { market: 'CN', symbol: '300308.SZ' }
+const DESKTOP = 1280
 
 export function lastStock(): { market: string; symbol: string } {
-  try {
-    const value = JSON.parse(localStorage.getItem(LAST_STOCK_KEY) ?? 'null')
-    if (value?.market && value?.symbol) return value
-  } catch {
-    /* ignore */
-  }
-  return { market: 'CN', symbol: '300308.SZ' }
+  const value = getPrefs().last_stock
+  return value?.market && value?.symbol ? value : DEFAULT_STOCK
 }
 
 export function rememberStock(market: string, symbol: string) {
-  try {
-    localStorage.setItem(LAST_STOCK_KEY, JSON.stringify({ market, symbol }))
-  } catch {
-    /* ignore */
-  }
+  updatePrefs({ last_stock: { market, symbol } })
 }
+
+/** Where "/" goes: the last page visited, else the last stock. */
+export function lastPage(): string {
+  const page = getPrefs().last_page
+  if (page && page.startsWith('/') && page !== '/') return page
+  const { market, symbol } = lastStock()
+  return `/stock/${market}/${encodeURIComponent(symbol)}`
+}
+
+export function rememberPage(href: string) {
+  if (href && href !== '/') updatePrefs({ last_page: href })
+}
+
+const isDesktop = () => typeof window !== 'undefined' && window.innerWidth >= DESKTOP
 
 interface UiState {
   sidebarOpen: boolean
@@ -27,8 +34,18 @@ interface UiState {
   setSidebar: (open: boolean) => void
 }
 
-export const useUi = create<UiState>((set) => ({
-  sidebarOpen: typeof window === 'undefined' ? true : window.innerWidth >= 1280,
-  toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
-  setSidebar: (open) => set({ sidebarOpen: open }),
+export const useUi = create<UiState>((set, get) => ({
+  sidebarOpen: isDesktop(),
+  // Only the docked (desktop) state is a preference; the drawer on narrow screens always starts closed.
+  toggleSidebar: () => get().setSidebar(!get().sidebarOpen),
+  setSidebar: (open) => {
+    set({ sidebarOpen: open })
+    if (isDesktop()) updatePrefs({ sidebar_open: open })
+  },
 }))
+
+/** Apply prefs that affect the shell once they are loaded. */
+export function applyShellPrefs() {
+  const open = getPrefs().sidebar_open
+  if (isDesktop() && typeof open === 'boolean') useUi.setState({ sidebarOpen: open })
+}

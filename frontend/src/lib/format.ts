@@ -86,3 +86,15 @@ export function formatTime(value: string | Date | null | undefined, withDate = f
   const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`
   return withDate ? `${d.getMonth() + 1}-${pad(d.getDate())} ${time}` : time
 }
+
+/** News times: "14:05" today, "昨天 14:05", else "11-10 14:05" (local time). */
+export function formatRelativeTime(value: string, now = new Date()): string {
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return DASH
+  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+  const diff = Math.round((day(now) - day(d)) / 86_400_000)
+  if (diff === 0) return time
+  if (diff === 1) return `昨天 ${time}`
+  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${time}`
+}

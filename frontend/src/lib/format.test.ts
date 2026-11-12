@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatAmount, formatMoneyShort, formatPct, formatPrice, formatSigned, formatVolume, trendOf } from './format'
+import { formatAmount, formatMoneyShort, formatPct, formatPrice, formatRelativeTime, formatSigned, formatVolume, trendOf } from './format'
 
 // Same cases as backend/tests/test_domain.py::test_format_volume / test_format_amount.
 describe('shared formatting cases (backend parity)', () => {
@@ -49,5 +49,15 @@ describe('display helpers', () => {
     expect(trendOf(-0.1)).toBe('down')
     expect(trendOf(0)).toBe('flat')
     expect(trendOf(null)).toBe('flat')
+  })
+})
+
+describe('formatRelativeTime', () => {
+  const now = new Date(2026, 10, 12, 15, 0)
+  it('shows time today, 昨天 yesterday, else month-day', () => {
+    expect(formatRelativeTime(new Date(2026, 10, 12, 9, 5).toISOString(), now)).toBe('09:05')
+    expect(formatRelativeTime(new Date(2026, 10, 11, 23, 59).toISOString(), now)).toBe('昨天 23:59')
+    expect(formatRelativeTime(new Date(2026, 10, 9, 8, 0).toISOString(), now)).toBe('11-09 08:00')
+    expect(formatRelativeTime('nope', now)).toBe('—')
   })
 })

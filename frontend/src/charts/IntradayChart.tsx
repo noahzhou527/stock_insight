@@ -168,6 +168,8 @@ export function IntradayChart({ points, preClose, tradeDate, sessions, market, c
   }, [points, preClose, tradeDate, sessions, market, theme, currency, sub])
 
   const shown = hover ?? points[points.length - 1]
+  // Yahoo index feeds carry no volume: leave the label out rather than show 0.
+  const hasSub = points.some((p) => (sub === 'amount' ? p.amount : p.volume))
   return (
     <div className="relative" style={{ height }}>
       <div ref={containerRef} className="absolute inset-0" />
@@ -184,9 +186,9 @@ export function IntradayChart({ points, preClose, tradeDate, sessions, market, c
           <span className="num" style={{ color: 'var(--warn)' }}>
             均 {formatPrice(shown.avg_price, currency)}
           </span>
-          <span className="num text-subtle">
+          {hasSub && <span className="num text-subtle">
             {sub === 'amount' ? `额 ${formatAmount(shown.amount, market, currency)}` : `量 ${formatVolume(shown.volume, market)}`}
-          </span>
+          </span>}
         </div>
       )}
     </div>

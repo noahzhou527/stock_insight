@@ -1,9 +1,9 @@
 /** Top bar (个股 / 自选 / 市场 / 排行 / 新闻 + search + theme) and collapsible sidebar (§6.1). */
 import { Link, Outlet, useParams, useRouterState } from '@tanstack/react-router'
 import { ChevronRight, Monitor, Moon, PanelLeft, Search, Sun } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useUniverse, useWatchlistItems } from '@/api/queries'
-import { lastStock, useUi } from '@/lib/nav'
+import { lastStock, rememberPage, useUi } from '@/lib/nav'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/theme/theme'
 import { SearchCommand, useSearchHotkey } from './SearchCommand'
@@ -176,6 +176,8 @@ function SectionTitle({ children }: { children: string }) {
 export function AppShell() {
   const [searchOpen, setSearchOpen] = useState(false)
   useSearchHotkey(setSearchOpen)
+  const href = useRouterState({ select: (s) => s.location.href })
+  useEffect(() => rememberPage(href), [href])
   return (
     <div className="min-h-screen">
       <TopBar onSearch={() => setSearchOpen(true)} />

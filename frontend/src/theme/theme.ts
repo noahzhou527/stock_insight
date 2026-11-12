@@ -1,5 +1,6 @@
 /** Theme preference (system / dark / light). index.html applies it before first paint; this keeps it in sync. */
 import { create } from 'zustand'
+import { getPrefs, updatePrefs } from '@/lib/prefs'
 
 export type ThemePref = 'system' | 'dark' | 'light'
 export type Theme = 'dark' | 'light'
@@ -45,6 +46,7 @@ export const useTheme = create<ThemeState>((set, get) => ({
     const theme = resolve(pref)
     apply(theme)
     set({ pref, theme })
+    updatePrefs({ theme: pref })
   },
   cycle: () => {
     const order: ThemePref[] = ['system', 'dark', 'light']
@@ -56,6 +58,12 @@ media().addEventListener('change', () => {
   const { pref, setPref } = useTheme.getState()
   if (pref === 'system') setPref('system')
 })
+
+/** The backend pref wins over the localStorage cache (e.g. after clearing site data). */
+export function applyThemePref() {
+  const pref = getPrefs().theme
+  if (pref && pref !== useTheme.getState().pref) useTheme.getState().setPref(pref)
+}
 
 /** Read a CSS custom property (charts need concrete colours). */
 export function cssVar(name: string, element: Element = document.documentElement): string {

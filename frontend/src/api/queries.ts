@@ -123,6 +123,61 @@ export function usePeers(market: Market, symbol: string) {
   })
 }
 
+export function useWatchlistQuotes() {
+  const poll = usePoll('CN')
+  return useQuery({
+    queryKey: ['watchlist', 'quotes'],
+    queryFn: ({ signal }) => api.get<Schemas['WatchlistQuotesResponse']>('/api/watchlist/quotes', undefined, signal),
+    placeholderData: keepPreviousData,
+    refetchInterval: poll,
+    staleTime: 20_000,
+  })
+}
+
+/** Quotes are the same for every metric; only 季度净利润 makes the backend fetch financial reports. */
+export function useRankings(metric: string) {
+  const poll = usePoll('CN')
+  const queryMetric = metric === 'quarter_profit' ? 'quarter_profit' : 'change_pct'
+  return useQuery({
+    queryKey: ['rankings', queryMetric],
+    queryFn: ({ signal }) => api.get<Schemas['RankingsResponse']>('/api/rankings', { metric: queryMetric }, signal),
+    placeholderData: keepPreviousData,
+    refetchInterval: poll,
+    staleTime: 20_000,
+  })
+}
+
+export function useMarketOverview(market: Market) {
+  const poll = usePoll(market)
+  return useQuery({
+    queryKey: ['market', market, 'overview'],
+    queryFn: ({ signal }) => api.get<Schemas['MarketOverview']>(`/api/market/${market}/overview`, undefined, signal),
+    refetchInterval: poll,
+    staleTime: 20_000,
+  })
+}
+
+export function useIndexIntraday(market: Market, symbol: string | undefined) {
+  const poll = usePoll(market)
+  return useQuery({
+    queryKey: ['market', market, 'index', symbol],
+    queryFn: ({ signal }) => api.get<Schemas['IndexIntraday']>(`/api/market/${market}/indices/${encodeURIComponent(symbol!)}/intraday`, undefined, signal),
+    enabled: Boolean(symbol),
+    placeholderData: keepPreviousData,
+    refetchInterval: poll,
+    staleTime: 20_000,
+  })
+}
+
+/** 新闻不随行情轮询；5 分钟内视为新鲜，手动刷新可立即重取。 */
+export function useNews() {
+  return useQuery({
+    queryKey: ['news'],
+    queryFn: ({ signal }) => api.get<Schemas['NewsResponse']>('/api/news', { hours: 72 }, signal),
+    staleTime: 5 * 60_000,
+  })
+}
+
 export function useHealth() {
   return useQuery({
     queryKey: ['health'],

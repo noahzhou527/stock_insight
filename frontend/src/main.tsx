@@ -4,6 +4,9 @@ import * as Tooltip from '@radix-ui/react-tooltip'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ApiError } from './api/client'
+import { applyShellPrefs } from './lib/nav'
+import { loadPrefs } from './lib/prefs'
+import { applyThemePref } from './theme/theme'
 import './index.css'
 import { router } from './routes/router'
 
@@ -16,6 +19,10 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+await loadPrefs()
+applyThemePref()
+applyShellPrefs()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

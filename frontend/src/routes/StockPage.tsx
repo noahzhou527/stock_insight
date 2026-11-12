@@ -9,6 +9,7 @@ import { IntradayChart } from '@/charts/IntradayChart'
 import { KlineChart } from '@/charts/KlineChart'
 import { BBI_COLOR, MA_COLORS } from '@/charts/chartTheme'
 import { rememberStock } from '@/lib/nav'
+import { updatePrefs } from '@/lib/prefs'
 import { DataStatusBadge } from '@/components/DataStatusBadge'
 import { InfoTip } from '@/components/InfoTip'
 import { AttributeBar, QuoteHeader } from '@/components/QuoteHeader'
@@ -17,12 +18,14 @@ import { Button, Segmented, Skeleton, Tip } from '@/components/ui'
 import type { Market } from '@/lib/format'
 import { localToday, RANGE_LABELS, RANGES, resolveRange, type RangeKey } from '@/lib/range'
 import { cn } from '@/lib/utils'
-import { parseMa, stockRoute, TABS, type StockSearch, type SubKey, type TabKey } from './router'
+import { stockRoute } from './router'
+import { parseMa, TABS, type StockSearch, type SubKey, type TabKey } from './search'
 import { DataTab } from './stock/DataTab'
 import { FinancialsTab } from './stock/FinancialsTab'
 import { PeersTab } from './stock/PeersTab'
 import { SignalsTab } from './stock/SignalsTab'
 
+const INDICATOR_KEYS = ['ma', 'bbi', 'boll', 'rsi', 'sub'] as const
 const MA_CHOICES = [5, 10, 20, 30, 50, 60, 120]
 const RSI_PERIODS = Array.from({ length: 15 }, (_, i) => i + 7) // 7–21
 const TAB_LABELS: Record<TabKey, string> = { signals: '技术信号', financials: '财务报表', peers: '同业对比', data: '数据明细' }
@@ -75,7 +78,15 @@ export function StockPage() {
   const maPeriods = parseMa(search.ma)
   const maKeys = maPeriods.map((p) => `ma${p}`)
 
-  const set = (patch: Partial<StockSearch>) => navigate({ search: (prev) => ({ ...prev, ...patch }), replace: false })
+  const set = (patch: Partial<StockSearch>) => {
+    // Indicator choices become the default for every stock (§6.6 偏好：默认均线与指标、副图类型).
+    const indicator = INDICATOR_KEYS.filter((k) => k in patch)
+    if (indicator.length) {
+      const next = { ...search, ...patch }
+      updatePrefs({ stock_defaults: { ma: next.ma, bbi: next.bbi, boll: next.boll, rsi: next.rsi, sub: next.sub } })
+    }
+    navigate({ search: (prev) => ({ ...prev, ...patch }), replace: false })
+  }
   const setRange = (range: RangeKey) => set(range === 'custom' ? { range, start, end } : { range, start: undefined, end: undefined })
 
   useEffect(() => rememberStock(market, symbol), [market, symbol])
