@@ -255,6 +255,7 @@ export function StockPage() {
           ) : (
             <KlineChart
               bars={bars.data.bars}
+              newListing={bars.data.new_listing.is_new_listing}
               indicators={bars.data.indicators}
               maKeys={maKeys.filter((k) => k in bars.data.indicators)}
               bbi={search.bbi && 'bbi' in bars.data.indicators}

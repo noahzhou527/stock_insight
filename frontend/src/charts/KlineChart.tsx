@@ -25,6 +25,8 @@ export type SubChart = 'volume' | 'amount' | 'rsi' | 'macd'
 
 interface Props {
   bars: Bar[]
+  /** History starts after the requested range (recently listed): keep natural candle width instead of stretching. */
+  newListing?: boolean
   indicators: Record<string, (number | null)[]>
   maKeys: string[]
   bbi: boolean
@@ -58,7 +60,7 @@ const RIGHT_PAD = 4
 const BOLL_KEYS = ['boll_upper', 'boll_middle', 'boll_lower'] as const
 const BOLL_LABEL = { boll_upper: '上', boll_middle: '中', boll_lower: '下' } as const
 
-export function KlineChart({ bars, indicators, maKeys, bbi, boll, rsiPeriod, sub, market, currency, height }: Props) {
+export function KlineChart({ newListing = false, bars, indicators, maKeys, bbi, boll, rsiPeriod, sub, market, currency, height }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const fitKeyRef = useRef('')
@@ -226,17 +228,18 @@ export function KlineChart({ bars, indicators, maKeys, bbi, boll, rsiPeriod, sub
     }
 
     // Fit only when the range itself changes (a 30-second refresh of the same range needs no refit).
-    const fitKey = `${valid[0]?.date}|${valid.length}`
+    const fitKey = `${valid[0]?.date}|${valid.length}|${newListing}`
     if (fitKeyRef.current === fitKey) return
     fitKeyRef.current = fitKey
     const capacity = Math.floor(element.clientWidth / NATURAL_SPACING)
-    // New listings: keep natural candle width instead of stretching a few bars across the chart.
-    const range = valid.length < capacity * 0.6
+    // Normal ranges (1月, 3月 …) always fill the width. Only a recent listing, whose few bars do not cover the
+    // requested range, keeps natural candle width so a handful of bars is not stretched into giant candles.
+    const range = newListing && valid.length < capacity * 0.6
       ? { from: -LEFT_PAD, to: Math.max(capacity * 0.6, valid.length + RIGHT_PAD) }
       : { from: -LEFT_PAD, to: valid.length - 1 + RIGHT_PAD }
     fitRangeRef.current = range
     chart.timeScale().setVisibleLogicalRange(range)
-  }, [bars, indicators, sub, subKind, rsiKey, maKeys, bbi, boll, theme, market, currency])
+  }, [bars, indicators, sub, subKind, rsiKey, maKeys, bbi, boll, theme, market, currency, newListing])
 
   const last = bars.length ? { bar: bars[bars.length - 1], index: bars.length - 1 } : null
   const shown = legend ?? (last ? { ...last, change: null } : null)
