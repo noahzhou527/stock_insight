@@ -234,7 +234,6 @@ export function StockPage() {
           <Segmented label="副图" value={search.sub === 'amount' ? 'amount' : 'volume'} onChange={(sub) => set({ sub })} options={SUB_OPTIONS.slice(0, 2)} />
         )}
         <div className="flex-1" />
-        {search.chart === 'kline' && <span className="hidden text-[11px] text-subtle xl:inline">Ctrl + 滚轮缩放 · 拖动平移</span>}
         <DataStatusBadge meta={chartMeta} compact />
         <Tip content="只刷新这只股票的行情">
           <Button variant="ghost" size="iconSm" onClick={refresh} disabled={refreshing} aria-label="刷新">

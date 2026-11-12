@@ -55,28 +55,6 @@ const NATURAL_SPACING = 8
 // Empty bar slots kept at each edge so the first and last candles (and their axis labels) are not cut off.
 const LEFT_PAD = 3
 const RIGHT_PAD = 4
-const MIN_VISIBLE_BARS = 10
-const ZOOM_STEP = 1.15
-
-/** Ctrl (⌘ on Mac) + wheel zooms the time axis around the cursor; without the modifier the page scrolls. */
-function zoomOnCtrlWheel(chart: IChartApi, element: HTMLElement, event: WheelEvent) {
-  if (!(event.ctrlKey || event.metaKey) || event.deltaY === 0) return
-  event.preventDefault() // also stops the browser's own Ctrl + wheel page zoom
-  const timeScale = chart.timeScale()
-  const range = timeScale.getVisibleLogicalRange()
-  if (!range) return
-  const x = event.clientX - element.getBoundingClientRect().left
-  const anchor = timeScale.coordinateToLogical(x) ?? range.to
-  const factor = event.deltaY > 0 ? ZOOM_STEP : 1 / ZOOM_STEP // wheel down = zoom out
-  let from = anchor - (anchor - range.from) * factor
-  let to = anchor + (range.to - anchor) * factor
-  if (to - from < MIN_VISIBLE_BARS) {
-    const mid = (from + to) / 2
-    from = mid - MIN_VISIBLE_BARS / 2
-    to = mid + MIN_VISIBLE_BARS / 2
-  }
-  timeScale.setVisibleLogicalRange({ from, to })
-}
 const BOLL_KEYS = ['boll_upper', 'boll_middle', 'boll_lower'] as const
 const BOLL_LABEL = { boll_upper: '上', boll_middle: '中', boll_lower: '下' } as const
 
@@ -84,6 +62,7 @@ export function KlineChart({ bars, indicators, maKeys, bbi, boll, rsiPeriod, sub
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const fitKeyRef = useRef('')
+  const fitRangeRef = useRef<{ from: number; to: number } | null>(null)
   const seriesRef = useRef<SeriesSet>({ ma: [], boll: [], subLines: [] })
   const theme = useTheme((s) => s.theme)
   const [legend, setLegend] = useState<Legend | null>(null)
@@ -108,10 +87,10 @@ export function KlineChart({ bars, indicators, maKeys, bbi, boll, rsiPeriod, sub
       ...baseOptions(colors),
       // extra headroom so the legend row never sits on the highest candles
       rightPriceScale: { ...baseOptions(colors).rightPriceScale, scaleMargins: { top: 0.12, bottom: 0.05 } },
-      // The plain mouse wheel scrolls the page (the chart fills most of the first screen); Ctrl + wheel zooms,
-      // dragging pans. Vertical touch drags also go to the page.
-      handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
-      handleScale: { mouseWheel: false, pinch: true, axisPressedMouseMove: true, axisDoubleClickReset: true },
+      // Fixed view: the chart always shows the whole selected range (zooming in cut candles off at the edges).
+      // Use the range buttons / custom dates to look at a shorter period. The mouse wheel scrolls the page.
+      handleScroll: false,
+      handleScale: false,
     })
     chartRef.current = chart
     fitKeyRef.current = '' // a new chart instance always starts fitted
@@ -186,10 +165,13 @@ export function KlineChart({ bars, indicators, maKeys, bbi, boll, rsiPeriod, sub
       setLegend({ bar, index, change: prev && isNum(bar.close) && isNum(prev.close) ? (bar.close / prev.close - 1) * 100 : null })
     }
     chart.subscribeCrosshairMove(onMove)
-    const onWheel = (event: WheelEvent) => zoomOnCtrlWheel(chart, element, event)
-    element.addEventListener('wheel', onWheel, { passive: false })
+    // The library keeps bar width on resize; keep the whole range visible instead.
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => {
+      if (fitRangeRef.current) requestAnimationFrame(() => chartRef.current?.timeScale().setVisibleLogicalRange(fitRangeRef.current!))
+    })
+    observer?.observe(element)
     return () => {
-      element.removeEventListener('wheel', onWheel)
+      observer?.disconnect()
       chart.unsubscribeCrosshairMove(onMove)
       chart.remove()
       chartRef.current = null
@@ -243,17 +225,17 @@ export function KlineChart({ bars, indicators, maKeys, bbi, boll, rsiPeriod, sub
       subLines[1]?.setData(line('macd_signal'))
     }
 
-    // Fit only when the range itself changes, so a 30-second refresh does not undo the user's zoom or pan.
+    // Fit only when the range itself changes (a 30-second refresh of the same range needs no refit).
     const fitKey = `${valid[0]?.date}|${valid.length}`
     if (fitKeyRef.current === fitKey) return
     fitKeyRef.current = fitKey
     const capacity = Math.floor(element.clientWidth / NATURAL_SPACING)
-    if (valid.length < capacity * 0.6) {
-      // New listings: keep natural candle width instead of stretching a few bars across the chart.
-      chart.timeScale().setVisibleLogicalRange({ from: -LEFT_PAD, to: Math.max(capacity * 0.6, valid.length + RIGHT_PAD) })
-    } else {
-      chart.timeScale().setVisibleLogicalRange({ from: -LEFT_PAD, to: valid.length - 1 + RIGHT_PAD })
-    }
+    // New listings: keep natural candle width instead of stretching a few bars across the chart.
+    const range = valid.length < capacity * 0.6
+      ? { from: -LEFT_PAD, to: Math.max(capacity * 0.6, valid.length + RIGHT_PAD) }
+      : { from: -LEFT_PAD, to: valid.length - 1 + RIGHT_PAD }
+    fitRangeRef.current = range
+    chart.timeScale().setVisibleLogicalRange(range)
   }, [bars, indicators, sub, subKind, rsiKey, maKeys, bbi, boll, theme, market, currency])
 
   const last = bars.length ? { bar: bars[bars.length - 1], index: bars.length - 1 } : null
