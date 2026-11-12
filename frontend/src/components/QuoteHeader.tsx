@@ -134,7 +134,7 @@ function WatchButton({ market, symbol, inWatchlist }: { market: Market; symbol: 
 
 function Cell({ label, children, hint, info }: { label: string; children: React.ReactNode; hint?: string; info?: IndicatorKey }) {
   const content = (
-    <div className="flex shrink-0 flex-col gap-0.5 px-3 first:pl-4" role="listitem">
+    <div className="flex shrink-0 flex-col gap-0.5 px-4 first:pl-4" role="listitem">
       <span className="flex items-center gap-0.5 text-[11px] whitespace-nowrap text-subtle">
         {label}
         {info && <InfoTip topic={info} />}
@@ -173,7 +173,7 @@ export function AttributeBar({ snapshot, market, currency }: { snapshot: Schemas
       <Cell label="区间均量">{formatVolume(m.avg_volume, market)}</Cell>
       <Cell label="区间最大成交额" hint={m.max_amount_date ? `出现于 ${m.max_amount_date}` : undefined}>
         {formatMoneyShort(m.max_amount, currency)}
-        {m.max_amount_date && <span className="ml-1 text-[11px] text-subtle">{m.max_amount_date.slice(5)}</span>}
+        {m.max_amount_date && <span className="ml-2 text-[11px] text-subtle">{m.max_amount_date.slice(5)}</span>}
       </Cell>
       <Cell label="年化波动率" info="volatility">{isNum(m.volatility) ? formatRatio(m.volatility, 1, '%') : lacking}</Cell>
       <Cell label="总市值">{formatMoneyShort(v?.market_cap, currency)}</Cell>

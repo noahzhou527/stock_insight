@@ -22,6 +22,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Schemas } from '@/api/client'
 import { formatAmount, formatPct, formatPrice, formatVolume, isNum, type Market } from '@/lib/format'
 import { useTheme } from '@/theme/theme'
+import { LegendItem } from './Legend'
 import { alpha, axisVolume, baseOptions, readColors } from './chartTheme'
 
 type Point = Schemas['IntradayPoint']
@@ -187,26 +188,34 @@ export function IntradayChart({ points, preClose, tradeDate, sessions, market, c
   // Yahoo index feeds carry no volume: leave the label out rather than show 0.
   const hasSub = points.some((p) => (sub === 'amount' ? p.amount : p.volume))
   return (
-    <div className="relative" style={{ height }}>
-      <div ref={containerRef} className="absolute inset-0" />
-      {shown && (
-        <div className="pointer-events-none absolute top-1.5 left-14 z-10 flex flex-wrap items-center gap-x-3 text-[11px]">
-          <span className="num text-muted">{shown.time.slice(11, 16)}</span>
-          <span className="num">
-            <span className="text-subtle">价 </span>
-            <span className="text-fg">{formatPrice(shown.price, currency)}</span>
-          </span>
-          <span className={isNum(shown.price) && shown.price >= preClose ? 'num text-up' : 'num text-down'}>
-            {isNum(shown.price) ? formatPct((shown.price / preClose - 1) * 100) : '—'}
-          </span>
-          <span className="num" style={{ color: 'var(--warn)' }}>
-            均 {formatPrice(shown.avg_price, currency)}
-          </span>
-          {hasSub && <span className="num text-subtle">
-            {sub === 'amount' ? `额 ${formatAmount(shown.amount, market, currency)}` : `量 ${formatVolume(shown.volume, market)}`}
-          </span>}
-        </div>
-      )}
+    <div className="flex flex-col" style={{ height }}>
+      {/* Legend in its own row above the plot so it never covers the axis labels */}
+      <div className="flex min-h-8 shrink-0 flex-wrap items-center gap-x-5 gap-y-1 px-3 py-1.5 text-[12px]">
+        {shown && (
+          <>
+            <span className="num text-muted">{shown.time.slice(11, 16)}</span>
+            <LegendItem label="价">
+              <span className="text-fg">{formatPrice(shown.price, currency)}</span>
+            </LegendItem>
+            <LegendItem label="涨跌">
+              <span className={isNum(shown.price) && shown.price >= preClose ? 'text-up' : 'text-down'}>
+                {isNum(shown.price) ? formatPct((shown.price / preClose - 1) * 100) : '—'}
+              </span>
+            </LegendItem>
+            <LegendItem label="均价" color="var(--warn)">
+              {formatPrice(shown.avg_price, currency)}
+            </LegendItem>
+            {hasSub && (
+              <LegendItem label={sub === 'amount' ? '额' : '量'}>
+                <span className="text-muted">{sub === 'amount' ? formatAmount(shown.amount, market, currency) : formatVolume(shown.volume, market)}</span>
+              </LegendItem>
+            )}
+          </>
+        )}
+      </div>
+      <div className="relative min-h-0 flex-1">
+        <div ref={containerRef} className="absolute inset-0" />
+      </div>
     </div>
   )
 }

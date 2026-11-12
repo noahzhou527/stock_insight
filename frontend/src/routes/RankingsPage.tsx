@@ -86,7 +86,7 @@ export function RankingsPage() {
       numeric('quarter_profit', '季度净利润', (r) => (
         <span title={r.quarter_period ? `报告期 ${r.quarter_period}（累计口径）` : undefined}>
           {formatMoneyShort(r.quarter_profit, 'CNY')}
-          {r.quarter_period && <span className="ml-1 text-[11px] text-subtle">{r.quarter_period.slice(2, 7)}</span>}
+          {r.quarter_period && <span className="ml-2 text-[11px] text-subtle">{r.quarter_period.slice(2, 7)}</span>}
         </span>
       )),
       numeric('quarter_profit_yoy', '同比', (r) => <ChangeText value={r.quarter_profit_yoy}>{formatPct(r.quarter_profit_yoy)}</ChangeText>),

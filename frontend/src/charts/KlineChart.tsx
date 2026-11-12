@@ -18,6 +18,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Schemas } from '@/api/client'
 import { formatAmount, formatPct, formatPrice, formatRatio, formatVolume, isNum, type Market } from '@/lib/format'
 import { useTheme } from '@/theme/theme'
+import { LegendItem } from './Legend'
 import { alpha, axisVolume, baseOptions, BBI_COLOR, MA_COLORS, readColors, SIGNAL_COLOR } from './chartTheme'
 
 type Bar = Schemas['Bar']
@@ -87,8 +88,6 @@ export function KlineChart({ newListing = false, bars, indicators, maKeys, bbi, 
     const colors = readColors(element)
     const chart = createChart(element, {
       ...baseOptions(colors),
-      // extra headroom so the legend row never sits on the highest candles
-      rightPriceScale: { ...baseOptions(colors).rightPriceScale, scaleMargins: { top: 0.12, bottom: 0.05 } },
       // Fixed view: the chart always shows the whole selected range (zooming in cut candles off at the edges).
       // Use the range buttons / custom dates to look at a shorter period. The mouse wheel scrolls the page.
       handleScroll: false,
@@ -251,57 +250,74 @@ export function KlineChart({ newListing = false, bars, indicators, maKeys, bbi, 
     ? `日 K 线图，共 ${bars.length} 个交易日，${bars[0].date} 至 ${last.bar.date}，最新收盘 ${formatPrice(last.bar.close, currency)}`
     : '日 K 线图'
   return (
-    <div className="relative" style={{ height }} role="img" aria-label={summary}>
-      <div ref={containerRef} className="absolute inset-0" />
-      {shown && (
-        <div className="pointer-events-none absolute top-1.5 right-16 left-2 z-10 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px]">
-          <span className="num text-muted">{shown.bar.date}</span>
-          {(['open', 'high', 'low', 'close'] as const).map((k) => (
-            <span key={k} className="num">
-              <span className="text-subtle">{{ open: '开', high: '高', low: '低', close: '收' }[k]} </span>
-              <span className="text-fg">{formatPrice(shown.bar[k], currency)}</span>
-            </span>
-          ))}
-          {shown.change !== null && <span className={shown.change >= 0 ? 'num text-up' : 'num text-down'}>{formatPct(shown.change)}</span>}
-          {maKeys.map((key, i) => (
-            <span key={key} className="num" style={{ color: MA_COLORS[i % MA_COLORS.length] }}>
-              {key.toUpperCase()} {formatPrice(at(key), currency)}
-            </span>
-          ))}
-          {bbi && (
-            <span className="num" style={{ color: BBI_COLOR }}>
-              BBI {formatPrice(at('bbi'), currency)}
-            </span>
-          )}
-          {boll && (
-            <span className="num text-accent">
-              BOLL {BOLL_KEYS.map((key) => `${BOLL_LABEL[key]} ${formatPrice(at(key), currency)}`).join(' ')}
-            </span>
-          )}
-          {sub === 'amount' && <span className="num text-subtle">额 {formatAmount(shown.bar.amount, market, currency)}</span>}
-          {sub === 'volume' && <span className="num text-subtle">量 {formatVolume(shown.bar.volume, market)}</span>}
-          {sub === 'rsi' && (
-            <span className="num text-accent">
-              RSI({rsiPeriod}) {formatRatio(at(rsiKey), 1)}
-            </span>
-          )}
-          {sub === 'macd' && (
-            <>
-              <span className="num text-accent">MACD {formatRatio(at('macd'), macdDigits)}</span>
-              <span className="num" style={{ color: SIGNAL_COLOR }}>
-                信号 {formatRatio(at('macd_signal'), macdDigits)}
-              </span>
-              <span className="num text-subtle">柱 {formatRatio(at('macd_hist'), macdDigits)}</span>
-            </>
-          )}
-          {shown.bar.provisional && <span className="text-accent">盘中合成</span>}
-        </div>
-      )}
-      {subEmpty && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-9 z-10 text-center text-[12px] text-subtle">
-          历史日 K 不足，暂无法计算 {sub === 'rsi' ? `RSI(${rsiPeriod})` : 'MACD'}
-        </div>
-      )}
+    <div className="flex flex-col" style={{ height }} role="img" aria-label={summary}>
+      {/* Legend in its own row above the plot so it never covers candles or axis labels */}
+      <div className="flex min-h-8 shrink-0 flex-wrap items-center gap-x-5 gap-y-1 px-3 py-1.5 text-[12px]">
+        {shown && (
+          <>
+            <span className="num text-muted">{shown.bar.date}</span>
+            {(['open', 'high', 'low', 'close'] as const).map((k) => (
+              <LegendItem key={k} label={{ open: '开', high: '高', low: '低', close: '收' }[k]}>
+                <span className="text-fg">{formatPrice(shown.bar[k], currency)}</span>
+              </LegendItem>
+            ))}
+            {shown.change !== null && <span className={shown.change >= 0 ? 'num text-up' : 'num text-down'}>{formatPct(shown.change)}</span>}
+            {maKeys.map((key, i) => (
+              <LegendItem key={key} label={key.toUpperCase()} color={MA_COLORS[i % MA_COLORS.length]}>
+                {formatPrice(at(key), currency)}
+              </LegendItem>
+            ))}
+            {bbi && (
+              <LegendItem label="BBI" color={BBI_COLOR}>
+                {formatPrice(at('bbi'), currency)}
+              </LegendItem>
+            )}
+            {boll &&
+              BOLL_KEYS.map((key) => (
+                <LegendItem key={key} label={`BOLL${BOLL_LABEL[key]}`} color="var(--accent)">
+                  {formatPrice(at(key), currency)}
+                </LegendItem>
+              ))}
+            {sub === 'amount' && (
+              <LegendItem label="额">
+                <span className="text-muted">{formatAmount(shown.bar.amount, market, currency)}</span>
+              </LegendItem>
+            )}
+            {sub === 'volume' && (
+              <LegendItem label="量">
+                <span className="text-muted">{formatVolume(shown.bar.volume, market)}</span>
+              </LegendItem>
+            )}
+            {sub === 'rsi' && (
+              <LegendItem label={`RSI(${rsiPeriod})`} color="var(--accent)">
+                {formatRatio(at(rsiKey), 1)}
+              </LegendItem>
+            )}
+            {sub === 'macd' && (
+              <>
+                <LegendItem label="MACD" color="var(--accent)">
+                  {formatRatio(at('macd'), macdDigits)}
+                </LegendItem>
+                <LegendItem label="信号" color={SIGNAL_COLOR}>
+                  {formatRatio(at('macd_signal'), macdDigits)}
+                </LegendItem>
+                <LegendItem label="柱">
+                  <span className="text-muted">{formatRatio(at('macd_hist'), macdDigits)}</span>
+                </LegendItem>
+              </>
+            )}
+            {shown.bar.provisional && <span className="rounded border border-accent/30 px-1 text-[11px] text-accent">盘中合成</span>}
+          </>
+        )}
+      </div>
+      <div className="relative min-h-0 flex-1">
+        <div ref={containerRef} className="absolute inset-0" />
+        {subEmpty && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-9 z-10 text-center text-[12px] text-subtle">
+            历史日 K 不足，暂无法计算 {sub === 'rsi' ? `RSI(${rsiPeriod})` : 'MACD'}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
