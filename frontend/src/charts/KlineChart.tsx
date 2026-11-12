@@ -52,6 +52,9 @@ interface SeriesSet {
 }
 
 const NATURAL_SPACING = 8
+// Empty bar slots kept at each edge so the first and last candles (and their axis labels) are not cut off.
+const LEFT_PAD = 3
+const RIGHT_PAD = 4
 const MIN_VISIBLE_BARS = 10
 const ZOOM_STEP = 1.15
 
@@ -80,6 +83,7 @@ const BOLL_LABEL = { boll_upper: '上', boll_middle: '中', boll_lower: '下' } 
 export function KlineChart({ bars, indicators, maKeys, bbi, boll, rsiPeriod, sub, market, currency, height }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
+  const fitKeyRef = useRef('')
   const seriesRef = useRef<SeriesSet>({ ma: [], boll: [], subLines: [] })
   const theme = useTheme((s) => s.theme)
   const [legend, setLegend] = useState<Legend | null>(null)
@@ -102,12 +106,15 @@ export function KlineChart({ bars, indicators, maKeys, bbi, boll, rsiPeriod, sub
     const colors = readColors(element)
     const chart = createChart(element, {
       ...baseOptions(colors),
+      // extra headroom so the legend row never sits on the highest candles
+      rightPriceScale: { ...baseOptions(colors).rightPriceScale, scaleMargins: { top: 0.12, bottom: 0.05 } },
       // The plain mouse wheel scrolls the page (the chart fills most of the first screen); Ctrl + wheel zooms,
       // dragging pans. Vertical touch drags also go to the page.
       handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
       handleScale: { mouseWheel: false, pinch: true, axisPressedMouseMove: true, axisDoubleClickReset: true },
     })
     chartRef.current = chart
+    fitKeyRef.current = '' // a new chart instance always starts fitted
     const pricePrecision = currency === 'KRW' ? 0 : 2
     const overlay = { lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false } as const
     const candle = chart.addSeries(CandlestickSeries, {
@@ -236,12 +243,16 @@ export function KlineChart({ bars, indicators, maKeys, bbi, boll, rsiPeriod, sub
       subLines[1]?.setData(line('macd_signal'))
     }
 
-    // New listings: keep natural candle width instead of stretching a few bars across the chart.
+    // Fit only when the range itself changes, so a 30-second refresh does not undo the user's zoom or pan.
+    const fitKey = `${valid[0]?.date}|${valid.length}`
+    if (fitKeyRef.current === fitKey) return
+    fitKeyRef.current = fitKey
     const capacity = Math.floor(element.clientWidth / NATURAL_SPACING)
     if (valid.length < capacity * 0.6) {
-      chart.timeScale().setVisibleLogicalRange({ from: -2, to: Math.max(capacity * 0.6, valid.length + 4) })
+      // New listings: keep natural candle width instead of stretching a few bars across the chart.
+      chart.timeScale().setVisibleLogicalRange({ from: -LEFT_PAD, to: Math.max(capacity * 0.6, valid.length + RIGHT_PAD) })
     } else {
-      chart.timeScale().fitContent()
+      chart.timeScale().setVisibleLogicalRange({ from: -LEFT_PAD, to: valid.length - 1 + RIGHT_PAD })
     }
   }, [bars, indicators, sub, subKind, rsiKey, maKeys, bbi, boll, theme, market, currency])
 
@@ -301,7 +312,6 @@ export function KlineChart({ bars, indicators, maKeys, bbi, boll, rsiPeriod, sub
           {shown.bar.provisional && <span className="text-accent">盘中合成</span>}
         </div>
       )}
-      <div className="pointer-events-none absolute bottom-7 left-2 z-10 text-[10px] text-subtle/80">Ctrl + 滚轮缩放 · 拖动平移 · 双击价格轴复位</div>
       {subEmpty && (
         <div className="pointer-events-none absolute inset-x-0 bottom-9 z-10 text-center text-[12px] text-subtle">
           历史日 K 不足，暂无法计算 {sub === 'rsi' ? `RSI(${rsiPeriod})` : 'MACD'}
