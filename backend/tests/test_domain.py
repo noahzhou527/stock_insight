@@ -202,33 +202,3 @@ def test_format_volume(value, market, expected):
 ])
 def test_format_amount(value, market, expected):
     assert fmt.format_amount(value, market) == expected
-
-
-# ---------------------------------------------------------------- legacy parity
-
-legacy_analysis = pytest.importorskip("analysis", reason="legacy modules removed")
-
-
-def test_indicator_parity_with_legacy():
-    bars = _bars(120)
-    frame = pd.DataFrame({"Close": bars["close"].to_numpy() + np.sin(np.arange(120))})
-    close = frame["Close"]
-    pd.testing.assert_series_equal(ind.rsi(close, 14), legacy_analysis.calculate_rsi(frame, 14), check_names=False)
-    pd.testing.assert_series_equal(ind.bbi(close), legacy_analysis.calculate_bbi(frame), check_names=False)
-    old = legacy_analysis.calculate_macd(frame)
-    new = ind.macd(close)
-    pd.testing.assert_series_equal(new["macd"], old["MACD"], check_names=False)
-    pd.testing.assert_series_equal(new["hist"], old["Histogram"], check_names=False)
-    boll = legacy_analysis.calculate_bollinger_bands(frame)
-    pd.testing.assert_series_equal(ind.bollinger(close)["upper"], boll["BB_Upper"], check_names=False)
-
-
-def test_ticker_and_format_parity_with_legacy():
-    legacy_watchlist = pytest.importorskip("watchlist")
-    legacy_format = pytest.importorskip("formatters")
-    for raw in ("300308", "SZ300308", "中际旭创(300308)", "920190", "688525sh"):
-        assert normalize_a_share(raw) == legacy_watchlist.normalize_ticker(raw)
-    for value in (0, 999, 15000, 1.5e8, 2.3e12, None):
-        for market in ("CN", "US", "KR"):
-            assert fmt.format_amount(value, market) == legacy_format.format_amount(value, market)
-            assert fmt.format_volume(value, market) == legacy_format.format_volume(value, market)

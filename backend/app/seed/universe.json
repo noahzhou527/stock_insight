@@ -1,0 +1,565 @@
+{
+ "_comment": "股票池与美股、韩股常用清单（由旧版 a_share_universe.py / app_config.py 迁移而来）。数据库为空时首次启动写入；之后以数据库为准。",
+ "groups": [
+  {
+   "name": "CPO",
+   "market": "CN",
+   "members": [
+    {
+     "symbol": "300308.SZ",
+     "name": "中际旭创"
+    },
+    {
+     "symbol": "300502.SZ",
+     "name": "新易盛"
+    },
+    {
+     "symbol": "300394.SZ",
+     "name": "天孚通信"
+    },
+    {
+     "symbol": "000988.SZ",
+     "name": "华工科技"
+    },
+    {
+     "symbol": "002281.SZ",
+     "name": "光迅科技"
+    }
+   ]
+  },
+  {
+   "name": "PCB",
+   "market": "CN",
+   "members": [
+    {
+     "symbol": "300476.SZ",
+     "name": "胜宏科技"
+    },
+    {
+     "symbol": "002384.SZ",
+     "name": "东山精密"
+    },
+    {
+     "symbol": "002916.SZ",
+     "name": "深南电路"
+    },
+    {
+     "symbol": "002463.SZ",
+     "name": "沪电股份"
+    },
+    {
+     "symbol": "002579.SZ",
+     "name": "中京电子"
+    }
+   ]
+  },
+  {
+   "name": "存储芯片",
+   "market": "CN",
+   "members": [
+    {
+     "symbol": "688825.SH",
+     "name": "长鑫存储"
+    },
+    {
+     "symbol": "603986.SH",
+     "name": "兆易创新"
+    },
+    {
+     "symbol": "688525.SH",
+     "name": "佰维存储"
+    },
+    {
+     "symbol": "001309.SZ",
+     "name": "德明利"
+    },
+    {
+     "symbol": "301308.SZ",
+     "name": "江波龙"
+    },
+    {
+     "symbol": "600667.SH",
+     "name": "太极实业"
+    }
+   ]
+  },
+  {
+   "name": "先进封装",
+   "market": "CN",
+   "members": [
+    {
+     "symbol": "002156.SZ",
+     "name": "通富微电"
+    },
+    {
+     "symbol": "600584.SH",
+     "name": "长电科技"
+    },
+    {
+     "symbol": "002185.SZ",
+     "name": "华天科技"
+    },
+    {
+     "symbol": "603005.SH",
+     "name": "晶方科技"
+    },
+    {
+     "symbol": "000021.SZ",
+     "name": "深科技"
+    }
+   ]
+  },
+  {
+   "name": "光纤光缆",
+   "market": "CN",
+   "members": [
+    {
+     "symbol": "601869.SH",
+     "name": "长飞光纤"
+    },
+    {
+     "symbol": "600487.SH",
+     "name": "亨通光电"
+    },
+    {
+     "symbol": "600522.SH",
+     "name": "中天科技"
+    },
+    {
+     "symbol": "600498.SH",
+     "name": "烽火通信"
+    },
+    {
+     "symbol": "600105.SH",
+     "name": "永鼎股份"
+    },
+    {
+     "symbol": "603618.SH",
+     "name": "杭电股份"
+    }
+   ]
+  },
+  {
+   "name": "MLCC",
+   "market": "CN",
+   "members": [
+    {
+     "symbol": "000636.SZ",
+     "name": "风华高科"
+    },
+    {
+     "symbol": "300408.SZ",
+     "name": "三环集团"
+    },
+    {
+     "symbol": "603678.SH",
+     "name": "火炬电子"
+    },
+    {
+     "symbol": "300285.SZ",
+     "name": "国瓷材料"
+    }
+   ]
+  },
+  {
+   "name": "AI PC",
+   "market": "CN",
+   "members": [
+    {
+     "symbol": "000725.SZ",
+     "name": "京东方A"
+    },
+    {
+     "symbol": "603890.SH",
+     "name": "春秋电子"
+    },
+    {
+     "symbol": "300331.SZ",
+     "name": "苏大维格"
+    },
+    {
+     "symbol": "920190.BJ",
+     "name": "雷神科技"
+    }
+   ]
+  },
+  {
+   "name": "AI芯片",
+   "market": "CN",
+   "members": [
+    {
+     "symbol": "688256.SH",
+     "name": "寒武纪"
+    },
+    {
+     "symbol": "688041.SH",
+     "name": "海光信息"
+    },
+    {
+     "symbol": "688802.SH",
+     "name": "沐曦股份"
+    },
+    {
+     "symbol": "688795.SH",
+     "name": "摩尔线程"
+    },
+    {
+     "symbol": "603160.SH",
+     "name": "汇顶科技"
+    }
+   ]
+  },
+  {
+   "name": "AI服务器",
+   "market": "CN",
+   "members": [
+    {
+     "symbol": "601138.SH",
+     "name": "工业富联"
+    },
+    {
+     "symbol": "000977.SZ",
+     "name": "浪潮信息"
+    },
+    {
+     "symbol": "000938.SZ",
+     "name": "紫光股份"
+    },
+    {
+     "symbol": "603019.SH",
+     "name": "中科曙光"
+    }
+   ]
+  },
+  {
+   "name": "OCS",
+   "market": "CN",
+   "members": [
+    {
+     "symbol": "688195.SH",
+     "name": "腾景科技"
+    },
+    {
+     "symbol": "002222.SZ",
+     "name": "福晶科技"
+    },
+    {
+     "symbol": "300620.SZ",
+     "name": "光库科技"
+    },
+    {
+     "symbol": "688205.SH",
+     "name": "德科立"
+    }
+   ]
+  },
+  {
+   "name": "培育钻石",
+   "market": "CN",
+   "members": [
+    {
+     "symbol": "600172.SH",
+     "name": "黄河旋风"
+    },
+    {
+     "symbol": "920725.BJ",
+     "name": "惠丰钻石"
+    },
+    {
+     "symbol": "605580.SH",
+     "name": "恒盛能源"
+    },
+    {
+     "symbol": "300179.SZ",
+     "name": "四方达"
+    }
+   ]
+  },
+  {
+   "name": "玻璃基板",
+   "market": "CN",
+   "members": [
+    {
+     "symbol": "603773.SH",
+     "name": "沃格光电"
+    },
+    {
+     "symbol": "600707.SH",
+     "name": "彩虹股份"
+    },
+    {
+     "symbol": "002962.SZ",
+     "name": "五方光电"
+    },
+    {
+     "symbol": "601636.SH",
+     "name": "旗滨集团"
+    }
+   ]
+  },
+  {
+   "name": "陶瓷基板",
+   "market": "CN",
+   "members": [
+    {
+     "symbol": "600353.SH",
+     "name": "旭光电子"
+    },
+    {
+     "symbol": "003031.SZ",
+     "name": "中瓷电子"
+    },
+    {
+     "symbol": "603936.SH",
+     "name": "博敏电子"
+    },
+    {
+     "symbol": "002194.SZ",
+     "name": "武汉凡谷"
+    }
+   ]
+  },
+  {
+   "name": "高速连接",
+   "market": "CN",
+   "members": [
+    {
+     "symbol": "002475.SZ",
+     "name": "立讯精密"
+    },
+    {
+     "symbol": "300913.SZ",
+     "name": "兆龙互连"
+    },
+    {
+     "symbol": "002130.SZ",
+     "name": "沃尔核材"
+    },
+    {
+     "symbol": "688668.SH",
+     "name": "鼎通科技"
+    }
+   ]
+  },
+  {
+   "name": "铜箔",
+   "market": "CN",
+   "members": [
+    {
+     "symbol": "301217.SZ",
+     "name": "铜冠铜箔"
+    },
+    {
+     "symbol": "600110.SH",
+     "name": "诺德股份"
+    },
+    {
+     "symbol": "688388.SH",
+     "name": "嘉元科技"
+    },
+    {
+     "symbol": "301511.SZ",
+     "name": "德福科技"
+    }
+   ]
+  },
+  {
+   "name": "树脂",
+   "market": "CN",
+   "members": [
+    {
+     "symbol": "601208.SH",
+     "name": "东材科技"
+    },
+    {
+     "symbol": "605589.SH",
+     "name": "圣泉集团"
+    },
+    {
+     "symbol": "300586.SZ",
+     "name": "美联新材"
+    },
+    {
+     "symbol": "603002.SH",
+     "name": "宏昌电子"
+    }
+   ]
+  },
+  {
+   "name": "电子布",
+   "market": "CN",
+   "members": [
+    {
+     "symbol": "603256.SH",
+     "name": "宏和科技"
+    },
+    {
+     "symbol": "600176.SH",
+     "name": "中国巨石"
+    },
+    {
+     "symbol": "002080.SZ",
+     "name": "中材科技"
+    },
+    {
+     "symbol": "301526.SZ",
+     "name": "国际复材"
+    }
+   ]
+  },
+  {
+   "name": "液冷",
+   "market": "CN",
+   "members": [
+    {
+     "symbol": "002837.SZ",
+     "name": "英维克"
+    },
+    {
+     "symbol": "000811.SZ",
+     "name": "冰轮环境"
+    },
+    {
+     "symbol": "603124.SH",
+     "name": "江南新材"
+    },
+    {
+     "symbol": "301018.SZ",
+     "name": "申菱环境"
+    }
+   ]
+  },
+  {
+   "name": "六氟化钨",
+   "market": "CN",
+   "members": [
+    {
+     "symbol": "688146.SH",
+     "name": "中船特气"
+    },
+    {
+     "symbol": "002971.SZ",
+     "name": "和远气体"
+    },
+    {
+     "symbol": "600378.SH",
+     "name": "昊华科技"
+    },
+    {
+     "symbol": "688268.SH",
+     "name": "华特气体"
+    }
+   ]
+  },
+  {
+   "name": "磷酸铁锂",
+   "market": "CN",
+   "members": [
+    {
+     "symbol": "002805.SZ",
+     "name": "丰元股份"
+    },
+    {
+     "symbol": "600141.SH",
+     "name": "兴发集团"
+    },
+    {
+     "symbol": "300014.SZ",
+     "name": "亿纬锂能"
+    },
+    {
+     "symbol": "002125.SZ",
+     "name": "湘潭电化"
+    }
+   ]
+  },
+  {
+   "name": "美股常用",
+   "market": "US",
+   "members": [
+    {
+     "symbol": "AAPL",
+     "name": "Apple"
+    },
+    {
+     "symbol": "MSFT",
+     "name": "Microsoft"
+    },
+    {
+     "symbol": "TSLA",
+     "name": "Tesla"
+    },
+    {
+     "symbol": "AMZN",
+     "name": "Amazon"
+    },
+    {
+     "symbol": "GOOGL",
+     "name": "Google"
+    },
+    {
+     "symbol": "META",
+     "name": "Meta"
+    },
+    {
+     "symbol": "NVDA",
+     "name": "NVIDIA"
+    },
+    {
+     "symbol": "SPCX",
+     "name": "SpaceX"
+    },
+    {
+     "symbol": "AVGO",
+     "name": "Broadcom"
+    },
+    {
+     "symbol": "SNDK",
+     "name": "SanDisk"
+    },
+    {
+     "symbol": "MU",
+     "name": "Micron"
+    },
+    {
+     "symbol": "BRK-B",
+     "name": "Berkshire Hathaway"
+    },
+    {
+     "symbol": "JPM",
+     "name": "JPMorgan"
+    },
+    {
+     "symbol": "V",
+     "name": "Visa"
+    }
+   ]
+  },
+  {
+   "name": "韩股常用",
+   "market": "KR",
+   "members": [
+    {
+     "symbol": "005930.KS",
+     "name": "三星电子"
+    },
+    {
+     "symbol": "000660.KS",
+     "name": "SK 海力士"
+    },
+    {
+     "symbol": "402340.KS",
+     "name": "SK Square"
+    },
+    {
+     "symbol": "005380.KS",
+     "name": "现代汽车"
+    },
+    {
+     "symbol": "009150.KS",
+     "name": "三星电机"
+    }
+   ]
+  }
+ ]
+}

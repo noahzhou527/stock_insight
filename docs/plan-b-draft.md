@@ -431,6 +431,16 @@ fetch_log(id INTEGER PK, provider, resource, key, started_at, duration_ms,
 
 **`start.bat` 的行为**：确保 `.venv` 存在并安装 `backend/requirements.txt` → 若 `frontend/dist` 不存在则执行 `npm ci && npm run build`（没装 Node 时给出明确提示）→ 首次运行执行数据库迁移与旧缓存导入 → 启动 uvicorn（`127.0.0.1:8000`）→ 打开浏览器。**不再执行 `git switch`**。
 
+**P6 实施备注（2026-11-12，以实际为准）**
+- **不做 Docker**：用户在 P6 中明确要求不涉及容器化，Dockerfile 与"`docker build` 成功"这条验收取消。
+- 旧 Streamlit 代码（根目录全部 `.py`、`services/`、`assets/`、`.streamlit/`、`start_public.bat`、根目录 `requirements.txt`）与旧版 `tests/` 已删除（用户已确认）。`THS_ACCESS_TOKEN` 只存在于旧代码中，随之删除。本机未纳入 Git 的 `.streamlit/secrets.toml` 未动。
+- 股票池原本来自旧版 `a_share_universe.py` 与 `app_config.py`。删除前已原样导出为 `backend/app/seed/universe.json`（22 组、107 个成员，与当前数据库一致），后端首次启动发现数据库没有分组时写入；`migrate_legacy_cache` 也改从这里读取。
+- P1/P2 用来核对"新旧解析结果一致"的对拍测试依赖旧模块，随旧代码一并删除（它们已完成使命；金样本解析测试仍在）。
+- `start.bat`：数据库迁移与内置股票池由后端每次启动时自动完成；旧缓存导入只在数据库文件不存在时执行一次。依赖只在 `backend/requirements.txt` 变化时重装。支持 `STOCK_INSIGHT_PORT`、`STOCK_INSIGHT_NO_BROWSER`。
+- Playwright 冒烟用例在 `frontend/e2e/`，`npm run e2e` 先构建再测。后端用 `backend/tests/e2e_server.py`：真实应用与 SPA，但数据源换成测试用的假数据源、临时数据库、固定在收盘后的时钟，因此离线、结果稳定。默认使用本机已安装的 Edge，不下载浏览器。
+- 前端按页面拆分代码，最大的块约 270 kB，不再有体积警告。
+- 验收：把当前代码克隆到全新目录后只运行 `start.bat`，它创建了 `.venv`、安装依赖、构建前端、写入 22 组 107 只的股票池并启动服务，个股页取到真实数据，控制台无报错；再次运行约 2 秒启动，端口被占用时给出提示。全部测试通过：后端 152 项（1 项跳过）、前端 32 项、Playwright 3 项。
+
 ---
 
 ## 8. 功能对照清单（验收依据）

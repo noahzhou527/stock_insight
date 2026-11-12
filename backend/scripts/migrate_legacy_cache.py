@@ -5,12 +5,12 @@ Run from repo root:  .venv\\Scripts\\python -m backend.scripts.migrate_legacy_ca
 - Read-only towards ``data/cache/`` (README 缓存保留政策): nothing is moved or deleted.
 - Idempotent: re-running inserts nothing twice. An instrument whose bars have already been
   refreshed from a live source is skipped (its legacy CSV may be on an older 复权 basis).
-- Legacy Python config files are parsed with ``ast`` (not imported) and skipped if absent.
+- The stock pool comes from the built-in seed (backend/app/seed/universe.json); the Streamlit-era
+  Python config files it was extracted from no longer exist.
 """
 from __future__ import annotations
 
 import argparse
-import ast
 import json
 import re
 import sys
@@ -19,21 +19,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.app.config import REPO_ROOT, get_settings
-from backend.app.db.models import UniverseGroup, UniverseMember, Watchlist, WatchlistItem
+from backend.app.db.models import Watchlist, WatchlistItem
 from backend.app.db.session import make_engine, make_session_factory, upgrade, utcnow
 from backend.app.domain import sessions
 from backend.app.providers.base import Instrument, finalize_bars
 from backend.app.repo import bars as repo
+from backend.app.seed import seed_universe
 
 LEGACY_SOURCE = "legacy-cache"
 NON_TICKER_FILES = {"a_share_market_snapshot"}
 CN_FILE = re.compile(r"^(\d{6})_(SH|SZ|BJ)$")
 KR_FILE = re.compile(r"^(\d{6})_(KS|KQ)$")
-LABEL = re.compile(r"^(.*?)\s*\(([^)]+)\)\s*$")
 
 
 @dataclass
@@ -68,18 +67,6 @@ def instrument_for_ticker(ticker: str) -> Instrument:
     return Instrument("US", ticker)
 
 
-def literal_assignments(path: Path, names: set[str]) -> dict:
-    if not path.exists():
-        return {}
-    found = {}
-    for node in ast.parse(path.read_text(encoding="utf-8")).body:
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                if isinstance(target, ast.Name) and target.id in names:
-                    found[target.id] = ast.literal_eval(node.value)
-    return found
-
-
 def read_csv(path: Path, inst: Instrument) -> pd.DataFrame:
     raw = pd.read_csv(path)
     raw.columns = [str(c).lower() for c in raw.columns]
@@ -91,7 +78,7 @@ def read_csv(path: Path, inst: Instrument) -> pd.DataFrame:
     return finalize_bars(rows)
 
 
-def migrate(root: Path, session: Session, now: datetime | None = None) -> Report:
+def migrate(root: Path, session: Session, now: datetime | None = None, groups: list[dict] | None = None) -> Report:
     now = now or datetime.now(timezone.utc)
     report = Report()
     cache = root / "data" / "cache"
@@ -103,42 +90,8 @@ def migrate(root: Path, session: Session, now: datetime | None = None) -> Report
             row.name = name
         report.instruments += 0 if existed else 1
 
-    # 股票池
-    universe = literal_assignments(root / "a_share_universe.py", {"A_SHARE_UNIVERSE"}).get("A_SHARE_UNIVERSE", {})
-    for group_order, (group_name, members) in enumerate(universe.items()):
-        group = session.scalar(select(UniverseGroup).where(UniverseGroup.name == group_name))
-        if group is None:
-            group = UniverseGroup(name=group_name, sort_order=group_order)
-            session.add(group)
-            session.flush()
-            report.groups += 1
-        for order, (name, ticker) in enumerate(members):
-            inst = instrument_for_ticker(ticker)
-            add_instrument(inst, name)
-            if session.get(UniverseMember, (group.id, inst.id)) is None:
-                session.add(UniverseMember(group_id=group.id, instrument_id=inst.id, sort_order=order))
-                report.members += 1
-
-    # 美股、韩股常用清单 → 两个分组（侧栏按分组展示）
-    options = literal_assignments(root / "app_config.py", {"US_TICKER_OPTIONS", "KR_TICKER_OPTIONS"})
-    for offset, (market_key, market, group_name) in enumerate((("US_TICKER_OPTIONS", "US", "美股常用"),
-                                                               ("KR_TICKER_OPTIONS", "KR", "韩股常用"))):
-        labels = [(label, ticker) for label, ticker in options.get(market_key, {}).items() if ticker != "CUSTOM"]
-        if not labels:
-            continue
-        group = session.scalar(select(UniverseGroup).where(UniverseGroup.name == group_name))
-        if group is None:
-            group = UniverseGroup(name=group_name, sort_order=1000 + offset)
-            session.add(group)
-            session.flush()
-            report.groups += 1
-        for order, (label, ticker) in enumerate(labels):
-            match = LABEL.match(label)
-            inst = Instrument(market, ticker)
-            add_instrument(inst, match.group(1) if match else label)
-            if session.get(UniverseMember, (group.id, inst.id)) is None:
-                session.add(UniverseMember(group_id=group.id, instrument_id=inst.id, sort_order=order))
-                report.members += 1
+    # 股票池与美股、韩股常用清单（内置于 backend/app/seed/universe.json）
+    report.groups, report.members = seed_universe(session, groups)
 
     # 自选
     watch_path = cache / "watchlist.json"

@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .api import errors, routes
 from .config import Settings, get_settings
+from .seed import seed_if_empty
 from .services.container import Container
 
 DESCRIPTION = """
@@ -27,6 +28,8 @@ def create_app(settings: Settings | None = None, container: Container | None = N
     async def lifespan(app: FastAPI):
         if getattr(app.state, "container", None) is None:
             app.state.container = Container(settings)
+            with app.state.container.session_factory() as session:
+                seed_if_empty(session)  # 全新安装：写入内置股票池
         yield
         app.state.container.close()
 

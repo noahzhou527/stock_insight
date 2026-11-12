@@ -1,11 +1,8 @@
 /** Code-based TanStack Router tree (§6.1). All page state lives in the URL; parsing rules are in search.ts. */
-import { createRootRoute, createRoute, createRouter, redirect } from '@tanstack/react-router'
+import { createRootRoute, createRoute, createRouter, lazyRouteComponent, redirect } from '@tanstack/react-router'
 import { AppShell } from '@/components/AppShell'
 import { EmptyState } from '@/components/states'
 import { lastPage } from '@/lib/nav'
-import { MarketPage } from './MarketPage'
-import { NewsPage } from './NewsPage'
-import { RankingsPage } from './RankingsPage'
 import {
   stockDefaults,
   validateMarketSearch,
@@ -21,8 +18,13 @@ import {
   type StockSearch,
   type WatchlistSearch,
 } from './search'
-import { StockPage } from './StockPage'
-import { WatchlistPage } from './WatchlistPage'
+
+// Each page is its own chunk; the chart library is only loaded by the pages that draw charts.
+const StockPage = lazyRouteComponent(() => import('./StockPage'), 'StockPage')
+const WatchlistPage = lazyRouteComponent(() => import('./WatchlistPage'), 'WatchlistPage')
+const MarketPage = lazyRouteComponent(() => import('./MarketPage'), 'MarketPage')
+const RankingsPage = lazyRouteComponent(() => import('./RankingsPage'), 'RankingsPage')
+const NewsPage = lazyRouteComponent(() => import('./NewsPage'), 'NewsPage')
 
 const rootRoute = createRootRoute({ component: AppShell })
 
