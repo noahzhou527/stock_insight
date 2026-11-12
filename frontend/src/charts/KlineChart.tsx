@@ -52,6 +52,28 @@ interface SeriesSet {
 }
 
 const NATURAL_SPACING = 8
+const MIN_VISIBLE_BARS = 10
+const ZOOM_STEP = 1.15
+
+/** Ctrl (⌘ on Mac) + wheel zooms the time axis around the cursor; without the modifier the page scrolls. */
+function zoomOnCtrlWheel(chart: IChartApi, element: HTMLElement, event: WheelEvent) {
+  if (!(event.ctrlKey || event.metaKey) || event.deltaY === 0) return
+  event.preventDefault() // also stops the browser's own Ctrl + wheel page zoom
+  const timeScale = chart.timeScale()
+  const range = timeScale.getVisibleLogicalRange()
+  if (!range) return
+  const x = event.clientX - element.getBoundingClientRect().left
+  const anchor = timeScale.coordinateToLogical(x) ?? range.to
+  const factor = event.deltaY > 0 ? ZOOM_STEP : 1 / ZOOM_STEP // wheel down = zoom out
+  let from = anchor - (anchor - range.from) * factor
+  let to = anchor + (range.to - anchor) * factor
+  if (to - from < MIN_VISIBLE_BARS) {
+    const mid = (from + to) / 2
+    from = mid - MIN_VISIBLE_BARS / 2
+    to = mid + MIN_VISIBLE_BARS / 2
+  }
+  timeScale.setVisibleLogicalRange({ from, to })
+}
 const BOLL_KEYS = ['boll_upper', 'boll_middle', 'boll_lower'] as const
 const BOLL_LABEL = { boll_upper: '上', boll_middle: '中', boll_lower: '下' } as const
 
@@ -78,7 +100,13 @@ export function KlineChart({ bars, indicators, maKeys, bbi, boll, rsiPeriod, sub
     const element = containerRef.current
     if (!element) return
     const colors = readColors(element)
-    const chart = createChart(element, baseOptions(colors))
+    const chart = createChart(element, {
+      ...baseOptions(colors),
+      // The plain mouse wheel scrolls the page (the chart fills most of the first screen); Ctrl + wheel zooms,
+      // dragging pans. Vertical touch drags also go to the page.
+      handleScroll: { mouseWheel: false, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+      handleScale: { mouseWheel: false, pinch: true, axisPressedMouseMove: true, axisDoubleClickReset: true },
+    })
     chartRef.current = chart
     const pricePrecision = currency === 'KRW' ? 0 : 2
     const overlay = { lineWidth: 1, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false } as const
@@ -151,7 +179,10 @@ export function KlineChart({ bars, indicators, maKeys, bbi, boll, rsiPeriod, sub
       setLegend({ bar, index, change: prev && isNum(bar.close) && isNum(prev.close) ? (bar.close / prev.close - 1) * 100 : null })
     }
     chart.subscribeCrosshairMove(onMove)
+    const onWheel = (event: WheelEvent) => zoomOnCtrlWheel(chart, element, event)
+    element.addEventListener('wheel', onWheel, { passive: false })
     return () => {
+      element.removeEventListener('wheel', onWheel)
       chart.unsubscribeCrosshairMove(onMove)
       chart.remove()
       chartRef.current = null
@@ -270,6 +301,7 @@ export function KlineChart({ bars, indicators, maKeys, bbi, boll, rsiPeriod, sub
           {shown.bar.provisional && <span className="text-accent">盘中合成</span>}
         </div>
       )}
+      <div className="pointer-events-none absolute bottom-7 left-2 z-10 text-[10px] text-subtle/80">Ctrl + 滚轮缩放 · 拖动平移 · 双击价格轴复位</div>
       {subEmpty && (
         <div className="pointer-events-none absolute inset-x-0 bottom-9 z-10 text-center text-[12px] text-subtle">
           历史日 K 不足，暂无法计算 {sub === 'rsi' ? `RSI(${rsiPeriod})` : 'MACD'}

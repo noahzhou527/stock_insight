@@ -115,7 +115,7 @@ export function StockPage() {
     }
   }
 
-  // The chart fills the first screen and takes the mouse wheel (zoom), so opening a tab brings it into view.
+  // The chart fills most of the first screen, so opening a tab brings its content into view.
   const tabsRef = useRef<HTMLDivElement>(null)
   const openTab = (tab: TabKey) => {
     set({ tab })
