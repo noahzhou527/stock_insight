@@ -55,6 +55,14 @@ function sessionGrid(tradeDate: string, sessions: string[][], stepMinutes: numbe
   return out
 }
 
+/**
+ * Pin the time axis to the full trading session (e.g. 09:30–15:00), not just the minutes traded so far.
+ * fitContent() ignores trailing whitespace points, so the axis used to grow through the day.
+ */
+function showWholeSession(chart: IChartApi | null, slots: number) {
+  if (chart && slots > 1) chart.timeScale().setVisibleLogicalRange({ from: 0, to: slots - 1 })
+}
+
 const hhmm = (t: number) => {
   const d = new Date(t * 1000)
   return `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}`
@@ -70,6 +78,7 @@ export function IntradayChart({ points, preClose, tradeDate, sessions, market, c
   const byTimeRef = useRef(byTime)
   const rangeRef = useRef<AutoscaleInfo | null>(null)
   const pctRangeRef = useRef<AutoscaleInfo | null>(null)
+  const slotsRef = useRef(0) // data + reserved whitespace slots covering the whole session
   useLayoutEffect(() => {
     byTimeRef.current = byTime
   }, [byTime])
@@ -83,7 +92,7 @@ export function IntradayChart({ points, preClose, tradeDate, sessions, market, c
       ...options,
       leftPriceScale: { ...options.leftPriceScale, visible: true, scaleMargins: { top: 0.1, bottom: 0.06 } },
       rightPriceScale: { ...options.rightPriceScale, scaleMargins: { top: 0.1, bottom: 0.06 } },
-      timeScale: { ...options.timeScale, rightOffset: 0, tickMarkFormatter: (t: Time) => hhmm(Number(t)), fixLeftEdge: true, fixRightEdge: true },
+      timeScale: { ...options.timeScale, rightOffset: 0, tickMarkFormatter: (t: Time) => hhmm(Number(t)) },
       localization: { ...options.localization, timeFormatter: (t: Time) => hhmm(Number(t)) },
       handleScroll: false,
       handleScale: false,
@@ -128,7 +137,13 @@ export function IntradayChart({ points, preClose, tradeDate, sessions, market, c
       setHover(param.time ? (byTimeRef.current.get(Number(param.time) as UTCTimestamp) ?? null) : null)
     }
     chart.subscribeCrosshairMove(onMove)
+    // Keep the whole session in view when the width changes (the library would keep bar width instead).
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => {
+      requestAnimationFrame(() => showWholeSession(chartRef.current, slotsRef.current))
+    })
+    observer?.observe(element)
     return () => {
+      observer?.disconnect()
       chart.unsubscribeCrosshairMove(onMove)
       chart.remove()
       chartRef.current = null
@@ -164,7 +179,8 @@ export function IntradayChart({ points, preClose, tradeDate, sessions, market, c
         return { time: t, value: (sub === 'amount' ? p.amount : p.volume) ?? 0, color: alpha(color, 0.75) }
       }),
     )
-    chartRef.current.timeScale().fitContent()
+    slotsRef.current = all.length
+    showWholeSession(chartRef.current, all.length)
   }, [points, preClose, tradeDate, sessions, market, theme, currency, sub])
 
   const shown = hover ?? points[points.length - 1]
